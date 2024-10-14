@@ -132,22 +132,24 @@ bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels
     channels.push_back(angle);
     return true;
 }
-bool CalcChannelMeans(const std::vector<cv::Mat> & channels, std::map<Classes,float> & means){
+bool CalcChannelMeans(const std::vector<cv::Mat> & channels, vFloat & means){
     means.clear();
-    for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
-        cv::Mat temp = (*it).clone();
-        means.push_back(cv::mean(temp)[0]);
-    }
+    for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++)
+        means.push_back(cv::mean(*it)[0]);
     return true;
 }
 };//namespace tcb
 namespace bayes {
-float CalcConv(const std::vector<float>& x, float avgx, const std::vector<float>& y, float avgy){
-    size_t n = x.size();
-    double res = 0;
-    for (size_t i = 0; i<n; i++)
-        res = res + (x[i] - avgx) * (y[i] - avgy);
-    res /= (n-1);
+vFloat CalcConv(const std::vector<vFloat>& x, vFloat avgx, const std::vector<vFloat>& y, vFloat avgy){
+    vFloat res;
+    const size_t n = x.size();
+    for (unsigned int d = 0; d < Demisions::dim; d++){
+        double tempRes = 0.0f;
+        for (size_t i = 0; i<n; i++)
+            tempRes += (x[i][d] - avgx[d]) * (y[i][d] - avgy[d]);
+        tempRes /= (n-1);
+        res.push_back(static_cast<float>(tempRes));
+    }
     return res;
 }
 void StaticPara::InitClassType(Classes ID){
@@ -172,46 +174,59 @@ void StaticPara::Sampling(const std::string& entryPath){
             for (unsigned int i = 0; i < Demisions::dim; i++){
                 cv::Mat viewingChannel = channels[i];
                 cv::Mat viewingPatch = viewingChannel(window);
-                cv::Scalar mean, stddev;
+                vFloat mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
-                mu.push_back(mean[0]);
-                sigma.push_back(stddev[0]);
+                mu.push_back(mean);
+                sigma.push_back(stddev);
             }
             recordNum++;
         }
     }
     return;
 }
-float StaticPara::CombineMu(int begin,int end) const{
-    double res = 0;
-    for (int i = begin; i < end; i++)
-        res += mu[i];
-    res /= (end - begin);
-    return static_cast<float>(res);
+vFloat StaticPara::CombineMu(int begin,int end) const{
+    vFloat res;
+    for (unsigned int d = 0; d < Demisions::dim; d++){
+        double tempRes = 0;
+        for (int i = begin; i < end; i++)
+            tempRes += mu[i][d];
+        tempRes /= (end - begin);
+        res.push_back(static_cast<float>(tempRes));
+    }
+    return res;
 }
-float StaticPara::CombineSigma(int begin,int end) const{
-    double res;
-    unsigned int num = 0;
-    for (int i = begin; i < end; i++)
-        res += sigma[i] * sigma[i];
-    res /= (end - begin);
-    res = std::sqrt(res);
-    return static_cast<float>(res);
+vFloat StaticPara::CombineSigma(int begin,int end) const{
+    vFloat res;
+    for (unsigned int d = 0; d < Demisions::dim; d++){
+        double tempRes = 0;
+        for (int i = begin; i < end; i++)
+            tempRes += sigma[i][d];
+        tempRes /= (end - begin);
+        res.push_back(static_cast<float>(tempRes));
+    }
+    return res;
 }
 void StaticPara::printInfo(){
     std::cout<<classFolderNames[classID]<<" sampled "<<recordNum<<std::endl;
-    for (unsigned int dim = 0; dim < Demisions::dim; dim++)
-        std::cout<<"dim"<<dim<<": mu = "<<CombineMu(0,recordNum)<<", sigma = "<<CombineSigma(0,recordNum)<<std::endl;
+    vFloat outputMu = CombineMu(0,recordNum), outputSigma = CombineSigma(0,recordNum);
+    for (unsigned int d = 0; d < Demisions::dim; d++)
+        std::cout<<"dim"<<dim<<": mu = "<<outputMu[d]<<", sigma = "<<outputSigma[d]<<std::endl;
+    return;
 }
-float NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x){
+float NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     float res = para[static_cast<Classes>(classID)].w;
-
-    return 0.0f;
+    for (unsigned int d = 0; d < Demisions::dim; d++){
+        float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
+        float vars = - pd * pd / (2 * para[static_cast<Classes>(classID)].sigma[d]);
+        float normalize = 1.0f / (sqrt(2 * CV_PI) * para[static_cast<Classes>(classID)].sigma[d]);
+        res *= normalize * exp(vars);
+    }
+    return res;
 }
-Classes NaiveBayesClassifier::Predict(const std::map<Classes,float>& x){
+Classes NaiveBayesClassifier::Predict(const vFloat& x){
     float maxProb = 0.0f;
     Classes bestClass = Classes::Unknown;
-    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+    for (unsigned int classID = 0; classID < Classes::counter; classID){
         float prob = CalculateClassProbability(classID,x);
         if (prob > maxProb) {
             maxProb = prob;
@@ -230,10 +245,10 @@ void NaiveBayesClassifier::Train(const StaticPara* densityParas,const float* cla
     return;
 };
 
-float NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x){
+float NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     return 0.0f;
 }
-Classes NonNaiveBayesClassifier::Predict(const std::map<Classes,float>& x){
+Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
     float maxProb = 0.0f;
     Classes bestClass = Classes::Unknown;
     for (unsigned int classID = 0; classID < Classes::counter; classID++){
@@ -247,11 +262,11 @@ Classes NonNaiveBayesClassifier::Predict(const std::map<Classes,float>& x){
 }
 void NonNaiveBayesClassifier::Train(const StaticPara* densityParas,const float* classProbs){
     const unsigned int classNum = Classes::counter;
-    convMat = new float*[classNum];
-    invConvMat = new float*[classNum];
+    convMat = new vFloat*[classNum];
+    invConvMat = new vFloat*[classNum];
     for (unsigned int classID = 0; classID < classNum; classID++){
-        convMat[classID] = new float[classNum];
-        invConvMat[classID] = new float[classNum];
+        convMat[classID] = new vFloat[classNum];
+        invConvMat[classID] = new vFloat[classNum];
     }
     for (unsigned int classID = 0; classID < classNum; classID++){
         para[static_cast<Classes>(classID)].mu = densityParas[classID].CombineMu(0,densityParas[classID].getRecordsNum());
@@ -261,7 +276,7 @@ void NonNaiveBayesClassifier::Train(const StaticPara* densityParas,const float* 
     for (unsigned int classX = 0; classX < classNum; classX++){
         convMat[classX][classX] = para[static_cast<Classes>(classX)].sigma;
         for (unsigned int classY = classX + 1; classY < classNum; classY++){
-            float conv = CalcConv(densityParas[classX].getMu(),para[static_cast<Classes>(classX)].mu,densityParas[classY].getMu(),para[static_cast<Classes>(classY)].mu);
+            vFloat conv = CalcConv(densityParas[classX].getMu(),para[static_cast<Classes>(classX)].mu,densityParas[classY].getMu(),para[static_cast<Classes>(classY)].mu);
             convMat[classX][classY] = conv;
             convMat[classY][classX] = conv;
         }

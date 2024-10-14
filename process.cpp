@@ -490,7 +490,7 @@ bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::
             bool lastColCheck = (c == cols - classifierKernelSize/2);
             cv::Rect window(r - classifierKernelSize/2, c - classifierKernelSize/2 , classifierKernelSize - lastRowCheck, classifierKernelSize - lastColCheck);   
             std::vector<cv::Mat> channels;
-            std::map<Classes,float> means;
+            vFloat means;
             tcb::GenerateFeatureChannels(rawimage(window), channels);
             tcb::CalcChannelMeans(channels, means);
             rowClasses.push_back(classifer->Predict(means));

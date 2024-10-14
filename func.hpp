@@ -44,6 +44,7 @@ enum Demisions : unsigned int{
 };
 constexpr int classifierKernelSize = 9;
 typedef std::vector<Classes> vClasses;
+typedef std::vector<float> vFloat;
 
 namespace tcb{
 bool TopHat(cv::Mat &image,int xSize,int ySize);
@@ -57,11 +58,11 @@ bool Erode(cv::Mat &image,int kernelSize);
 bool Dilate(cv::Mat &image,int kernelSize);
 bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry);
 bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels);
-bool CalcChannelMeans(const std::vector<cv::Mat> & channels, std::map<Classes,float> & means);
+bool CalcChannelMeans(const std::vector<cv::Mat> & channels, vFloat & means);
 };
 namespace bayes{
 class StaticPara{
-    std::vector<float> mu,sigma;
+    std::vector<vFloat> mu,sigma;
     Classes classID;
     unsigned int recordNum;
 public:
@@ -70,49 +71,50 @@ public:
     ~StaticPara(){}
     void InitClassType(Classes ID);
     void Sampling(const std::string& entryPath);
-    float CombineMu(int begin,int end) const;
-    float CombineSigma(int begin,int end) const;
+    vFloat CombineMu(int begin,int end) const;
+    vFloat CombineSigma(int begin,int end) const;
     unsigned int getRecordsNum() const{return recordNum;}
     void printInfo();
     Classes getClassID() const{return classID;}
-    const std::vector<float>& getMu() const{return mu;}
-    const std::vector<float>& getSigma() const{return sigma;}
+    const std::vector<vFloat>& getMu() const{return mu;}
+    const std::vector<vFloat>& getSigma() const{return sigma;}
 };
-float CalcConv(const std::vector<float>& x, float avgx, const std::vector<float>& y, float avgy);
+vFloat CalcConv(const std::vector<vFloat>& x, vFloat avgx, const std::vector<vFloat>& y, vFloat avgy);
 template <class paraForm>
 class BayesClassifier{
 protected:
     float T;
     std::map<Classes,paraForm> para;
-    virtual float CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x) = 0;
+    virtual float CalculateClassProbability(unsigned int classID,const vFloat& x) = 0;
 public:
     BayesClassifier(){}
     ~BayesClassifier(){}
-    virtual Classes Predict(const std::map<Classes,float>& x) = 0;
+    virtual Classes Predict(const vFloat& x) = 0;
     virtual void Train(const StaticPara* densityParas,const float* classProbs) = 0;
 };
 struct BasicParaList{
-    float mu,sigma,w;
+    vFloat mu,sigma;
+    float w;
 };
 class NaiveBayesClassifier : public BayesClassifier<BasicParaList>{
 protected:
-    float CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x);
+    float CalculateClassProbability(unsigned int classID,const vFloat& x);
     const static float lambda = 0.1f;//regularization parameter
 public:
     NaiveBayesClassifier(){};
     ~NaiveBayesClassifier(){}
-    Classes Predict(const std::map<Classes,float>& x);
+    Classes Predict(const vFloat& x);
     void Train(const StaticPara* densityParas,const float* classProbs);
 };
 class NonNaiveBayesClassifier : public NaiveBayesClassifier{
 protected:
-    float CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x);
-    float** convMat;
-    float** invConvMat;
+    float CalculateClassProbability(unsigned int classID,const vFloat& x);
+    vFloat** convMat;
+    vFloat** invConvMat;
 public:
     NonNaiveBayesClassifier(){convMat = nullptr; invConvMat = nullptr;}
     ~NonNaiveBayesClassifier(){delete[] convMat; delete[] invConvMat;}
-    Classes Predict(const std::map<Classes,float>& x);
+    Classes Predict(const vFloat& x);
     void Train(const StaticPara* densityParas,const float* classProbs);
 };
 }
