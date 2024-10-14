@@ -4,16 +4,8 @@
 #include "func.hpp"
 #include "process.hpp"
 
-int HistMethod(){
+int HistMethod(const cv::Mat& rawimage){
     using namespace hist;
-    cv::Mat rawimage = cv::imread("../images/spot.jpeg");
-    if (rawimage.empty()) {
-        std::cerr << "Image not found!" << std::endl;
-        return -1;
-    }
-    cv::imshow("raw Image", rawimage);
-    cv::waitKey(0);
-    cv::destroyWindow("raw Image");
     cv::Mat correctImage;
     CorrectImage(rawimage,correctImage);
     cv::Mat flatImage = correctImage.clone();
@@ -32,17 +24,23 @@ int HistMethod(){
     ClassifityFruits(rawimage,correctImage,flatImage,secondConvexImage);
     return 0;
 }
-int BayersMethod(){
-    using namespace bayers;
+int BayersMethod(const cv::Mat& rawimage){
+    using namespace bayes;
     unsigned int classesNum = Classes::counter;
-    float* probClass = new float[classesNum];
-    CalcClassProb(probClass);
+    float* classProbs = new float[classesNum];
+    CalcClassProb(classProbs);
     StaticPara* classParas = new StaticPara[classesNum];
     for (unsigned int classID = 0; classID < classesNum; classID++)
         classParas[classID].InitClassType(static_cast<Classes>(classID));
     StudySamples(classParas);
-    
-    delete[] probClass;
+    BasicNaiveBayesClassifier* basicClassifiers = new BasicNaiveBayesClassifier();
+    basicClassifiers->Train(classParas,classProbs);
+    ClassMat patchClasses,pixelClasses;
+    BayesClassify(rawimage,basicClassifiers,patchClasses);
+    cv::Mat classified;
+    DownSampling(patchClasses,pixelClasses);
+    GenerateClassifiedImage(rawimage,classified,pixelClasses);
+    delete[] classProbs;
     delete[] classParas;
     return 0;
 }
@@ -52,16 +50,24 @@ int FisherMethod(){
 int main() {
     std::cout << "Which method do you want to use?" << std::endl;
     std::cout << "1. Histo Method" << std::endl;
-    std::cout << "2. Bayers Method" << std::endl;
+    std::cout << "2. bayes Method" << std::endl;
     std::cout << "3. Fisher Method" << std::endl;
     int type = 2;
     //std::cin>>type;
+    cv::Mat rawimage = cv::imread("../images/spot.jpeg");
+    if (rawimage.empty()) {
+        std::cerr << "Image not found!" << std::endl;
+        return -1;
+    }
+    cv::imshow("raw Image", rawimage);
+    cv::waitKey(0);
+    cv::destroyWindow("raw Image");
     switch (type){
         case 1:
-            HistMethod();
+            HistMethod(rawimage);
             break;
         case 2:
-            BayersMethod();
+            BayersMethod(rawimage);
             break;
         case 3:
             break;

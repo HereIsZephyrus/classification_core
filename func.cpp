@@ -1,6 +1,19 @@
+#include <cmath>
 #include "func.hpp"
 
-std::string classFolderNames[Classes::counter] = {"desk","apple","blackplum","dongzao","grape","peach","yellowpeach"};
+std::string classFolderNames[Classes::counter] = 
+{"desk","apple","blackplum","dongzao","grape","peach","yellowpeach"};
+std::map<Classes,cv::Scalar> classifyColor = {
+    {Classes::Desk,cv::Scalar(0,0,0)}, // black
+    {Classes::Apple,cv::Scalar(255,0,0)}, // red
+    {Classes::Blackplum,cv::Scalar(255,0,255)}, // magenta
+    {Classes::Dongzao,cv::Scalar(165,42,42)}, // brzone,
+    {Classes::Grape,cv::Scalar(0,255,0)}, // green
+    {Classes::Peach,cv::Scalar(255,192,203)}, // pink
+    {Classes::Yellowpeach,cv::Scalar(0,255,255)}, // yellow    
+    {Classes::Edge,cv::Scalar(255,255,255)}, // white
+    {Classes::Unknown,cv::Scalar(211,211,211)}// gray
+};
 namespace tcb{
 bool TopHat(cv::Mat &image,int xSize,int ySize){
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(xSize, ySize));
@@ -106,8 +119,21 @@ bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry) {
     }
     return true;
 }
+bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels){
+    cv::split(image, channels);
+    cv::Mat grayImage;
+    cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+    channels.push_back(grayImage);
+    cv::Mat sobelx,sobely,magnitude,angle;
+    cv::Sobel(image, sobelx, CV_64F, 1, 0, 3);
+    cv::Sobel(image, sobely, CV_64F, 0, 1, 3);
+    cv::cartToPolar(sobelx, sobely, magnitude, angle, true);
+    channels.push_back(magnitude);
+    channels.push_back(angle);
+    return true;
+}
 };
-namespace bayers {
+namespace bayes {
 void StaticPara::InitClassType(Classes ID){
     recordNum = 0;
     classID = ID;
@@ -124,15 +150,7 @@ void StaticPara::Sampling(const std::string& entryPath){
         return;
     }
     std::vector<cv::Mat> channels;
-    cv::split(patch, channels);
-    cv::Mat grayImage;
-    cv::cvtColor(patch, grayImage, cv::COLOR_BGR2GRAY);
-    channels.push_back(grayImage);
-    cv::Mat sobelx,sobely,magnitude,angle;
-    cv::Sobel(patch, sobelx, CV_64F, 1, 0, 3);
-    cv::Sobel(patch, sobely, CV_64F, 0, 1, 3);
-    cv::cartToPolar(sobelx, sobely, magnitude, angle, true);
-    channels.push_back(magnitude);
+    tcb::GenerateFeatureChannels(patch,channels);
     const unsigned int patchRows = patch.rows, patchCols = patch.cols;
     for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
@@ -144,10 +162,41 @@ void StaticPara::Sampling(const std::string& entryPath){
                 cv::meanStdDev(viewingPatch, mean, stddev);
                 mu[i].push_back(mean[0]);
                 sigma[i].push_back(stddev[0]);
-                std::cout<<i<<' '<<mean[0]<<" "<<stddev[0]<<std::endl;
             }
+            recordNum++;
         }
     }
     return;
+}
+float StaticPara::combineMu(pfloat begin,pfloat end){
+    double res = 0;
+    unsigned int num = 0;
+    for (pfloat it = begin; it != end; it++, num++)
+        res += *it;
+    res /= num;
+    return static_cast<float>(res);
+}
+float StaticPara::combineSigma(pfloat begin,pfloat end){
+    double res;
+    unsigned int num = 0;
+    for (pfloat it = begin; it != end; it++, num++)
+        res += (*it)*(*it);
+    res /= num;
+    res = std::sqrt(res);
+    return static_cast<float>(res);
+}
+void StaticPara::printInfo(){
+    std::cout<<classFolderNames[classID]<<" sampled "<<recordNum<<std::endl;
+    for (unsigned int dim = 0; dim < Demisions::dim; dim++)
+        std::cout<<"dim"<<dim<<": mu = "<<combineMu(mu[dim].begin(),mu[dim].end())<<", sigma = "<<combineSigma(sigma[dim].begin(),sigma[dim].end())<<std::endl;
+}
+float BasicNaiveBayesClassifier::CalculateClassProbability(){
+    return 0.0f;
+}
+Classes BasicNaiveBayesClassifier::Predict(const std::vector<cv::Mat>& channels){
+    return Classes::unknown;
+}
+void BasicNaiveBayesClassifier::Train(const StaticPara* densityParas,float* classProbs){
+
 }
 };

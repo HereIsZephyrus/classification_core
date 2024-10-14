@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <cstring>
 #include <string>
+#include <map>
 #define SHOW_WINDOW false
 struct Border{
     int label;
@@ -18,7 +19,7 @@ struct Border{
         this->centerY = -1;
     }
 };
-enum Classes{
+enum Classes : unsigned int{
     Desk,
     Apple,
     Blackplum,
@@ -26,18 +27,24 @@ enum Classes{
     Grape,
     Peach,
     Yellowpeach,
-    counter
+    counter,
+    Edge,
+    Unknown
 };
 extern std::string classFolderNames[Classes::counter];
-enum Demisions{
+extern std::map<Classes,cv::Scalar> classifyColor;
+enum Demisions : unsigned int{
     blue,
     green,
     red,
     gray,
     gradient,
+    angle,
     dim
 };
-constexpr int classifierKernelSize = 5;
+constexpr int classifierKernelSize = 9;
+typedef std::vector<float>::iterator pfloat;
+typedef std::vector<Classes> vClasses;
 
 namespace tcb{
 bool TopHat(cv::Mat &image,int xSize,int ySize);
@@ -50,8 +57,9 @@ bool BoxSmooth(cv::Mat &image,int xSize,int ySize);
 bool Erode(cv::Mat &image,int kernelSize);
 bool Dilate(cv::Mat &image,int kernelSize);
 bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry);
+bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels);
 };
-namespace bayers{
+namespace bayes{
 class StaticPara{
     std::vector<std::vector<float>> mu,sigma;
     Classes classID;
@@ -65,7 +73,30 @@ public:
     ~StaticPara(){}
     void InitClassType(Classes ID);
     void Sampling(const std::string& entryPath);
+    float combineMu(pfloat begin,pfloat end);
+    float combineSigma(pfloat begin,pfloat end);
+    unsigned int getRecordsNum() const{return recordNum;}
+    void printInfo();
 };
-
+class BayesClassifier{
+protected:
+    virtual float CalculateClassProbability() = 0;
+public:
+    BayesClassifier();
+    ~BayesClassifier(){}
+    virtual Classes Predict(const std::vector<cv::Mat>& channels) = 0;
+    virtual void Train(const StaticPara* densityParas,float* classProbs) = 0;
+};
+class BasicNaiveBayesClassifier : public BayesClassifier{
+    float T;
+    std::vector<float> mu,sigma;
+protected:
+    float CalculateClassProbability();
+public:
+    BasicNaiveBayesClassifier();
+    ~BasicNaiveBayesClassifier(){}
+    Classes Predict(const std::vector<cv::Mat>& channels);
+    void Train(const StaticPara* densityParas,float* classProbs);
+};
 }
 #endif

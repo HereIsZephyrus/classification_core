@@ -5,6 +5,7 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
+#include <vector>
 #include "process.hpp"
 namespace hist{
 bool vignetteCorrection(const cv::Mat& inputImage, cv::Mat& convexImage) {
@@ -421,7 +422,7 @@ bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const 
     return true;
 }
 };
-namespace bayers{
+namespace bayes{
 bool CalcClassProb(float* prob){
     unsigned int* countings = new unsigned int[Classes::counter];
     unsigned int totalRecord = 0;
@@ -474,6 +475,107 @@ bool StudySamples(StaticPara* classParas){
             for (const auto& entry : fs::recursive_directory_iterator(classFolderPath)) {
                 classParas[classID].Sampling(entry.path());
             }
+        }
+    }
+    for (unsigned int classID = 0; classID < Classes::counter; classID++)
+        classParas[classID].printInfo();
+    return true;
+}
+bool BayesClassify(const cv::Mat& rawimage,BayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
+    int rows = rawimage.rows, cols = rawimage.cols;
+    for (int r = classifierKernelSize/2; r < rows - classifierKernelSize/2; r+=classifierKernelSize/2){
+        std::vector<Classes> rowClasses;
+        bool lastRowCheck = (r == rows - classifierKernelSize/2);
+        for (int c = classifierKernelSize/2; c < cols - classifierKernelSize/2; c+=classifierKernelSize/2){
+            bool lastColCheck = (c == cols - classifierKernelSize/2);
+            cv::Rect window(r - classifierKernelSize/2, c - classifierKernelSize/2 , classifierKernelSize - lastRowCheck, classifierKernelSize - lastColCheck);   
+            std::vector<cv::Mat> channels;
+            tcb::GenerateFeatureChannels(rawimage(window), channels);
+            rowClasses.push_back(classifer->Predict(channels));
+        }
+        patchClasses.push_back(rowClasses);
+    }
+    return true;
+}
+bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
+    ClassMat::const_iterator row = patchClasses.begin();
+    { //tackle the first line
+        vClasses temprow;
+        for (vClasses::const_iterator col = row->begin(); col != row->end(); col++){
+            if (col == row->begin()){
+                temprow.push_back(*col);
+                continue;
+            }
+            if ((*col) != (*(col-1)))//horizontalEdgeCheck
+                temprow.push_back(Classes::edge);
+            else
+                temprow.push_back(*col);
+            if ((col+1) == row->end())// manually add the last element
+                temprow.push_back(*col);
+        }
+        pixelClasses.push_back(temprow);
+    }
+    vClasses::const_iterator lastRowBegin = row->begin();
+    row++;
+    for (; row != patchClasses.end(); row++){
+        vClasses temprow;
+        vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
+        { //tackle the first col
+            if (*col == *diagonalCol)
+                temprow.push_back(*col);
+            else
+                temprow.push_back(Classes::edge);
+            col++;
+        }
+        for (;col != row->end(); col++,diagonalCol++){
+            bool horizontalEdgeCheck = (*col) == (*(col-1));
+            bool verticalEdgeCheck = (*col) == (*(diagonalCol+1));
+            bool diagonalEdgeCheck = (*col) == (*(diagonalCol));
+            if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
+                temprow.push_back(*col);
+            else
+                temprow.push_back(Classes::edge);
+            if ((col+1) == row->end())// manually add the last element
+                temprow.push_back(*col);
+        }
+        pixelClasses.push_back(temprow);
+        if (row+1 != patchClasses.end())//pause on the last row
+            lastRowBegin = row->begin();
+    }
+    row--;
+    {// manually add the last row
+        vClasses temprow;
+        vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
+        { //tackle the first col
+            if (*col == *diagonalCol)
+                temprow.push_back(*col);
+            else
+                temprow.push_back(Classes::edge);
+            col++;
+        }
+        for (;col != row->end(); col++,diagonalCol++){
+            bool horizontalEdgeCheck = (*col) == (*(col-1));
+            bool verticalEdgeCheck = (*col) == (*(diagonalCol+1));
+            bool diagonalEdgeCheck = (*col) == (*(diagonalCol));
+            if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
+                temprow.push_back(*col);
+            else
+                temprow.push_back(Classes::edge);
+            if ((col+1) == row->end())// manually add the last element
+                temprow.push_back(*col);
+        }
+        pixelClasses.push_back(temprow);
+    }
+    return true;
+}
+bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const ClassMat& pixelClasses){
+    classified = cv::Mat::zeros(rawimage.rows, rawimage.cols, CV_8UC3);
+    classified.setTo(classifyColor[Unknown]);
+    int x = 0,y = 0;
+    for (ClassMat::const_iterator row = pixelClasses.begin(); row != pixelClasses.end(); row++,y+=classifierKernelSize/2){
+        for (vClasses::const_iterator col = row->begin(); col != row->end(); col++,x+=classifierKernelSize/2){
+            cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
+            classified(window) = classifyColor[*col];
         }
     }
     return true;

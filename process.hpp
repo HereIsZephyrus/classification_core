@@ -15,8 +15,12 @@ bool FirstConvexHull(const cv::Mat& binaryImage,cv::Mat& convexImage);
 bool SecondConvexHull(const cv::Mat& convexIn,cv::Mat& totalMask,cv::Mat& convexOut);
 bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const cv::Mat& flatImage,const cv::Mat& convexImage);
 };
-namespace bayers{
+typedef std::vector<std::vector<Classes>> ClassMat;
+namespace bayes{
 bool CalcClassProb(float* prob);
 bool StudySamples(StaticPara* classParas);
+bool BayesClassify(const cv::Mat& rawimage,BayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses);
+bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses);
+bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const ClassMat& pixelClasses);
 };
 #endif
