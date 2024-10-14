@@ -3,8 +3,10 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <fstream>
+#include <filesystem>
 #include "process.hpp"
-
+namespace hist{
 bool vignetteCorrection(const cv::Mat& inputImage, cv::Mat& convexImage) {
     CV_Assert(inputImage.type() == CV_8UC3);
     convexImage = inputImage.clone();
@@ -418,3 +420,62 @@ bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const 
     }
     return true;
 }
+};
+namespace bayers{
+bool CalcClassProb(float* prob){
+    unsigned int* countings = new unsigned int[Classes::counter];
+    unsigned int totalRecord = 0;
+    for (int i = 0; i < Classes::counter; i++)
+        countings[i] = 0;
+    std::string filename = "../sampling/suit3/classification.csv";
+    std::ifstream file(filename);
+    std::string line;
+    if (!file.is_open()) {
+        std::cerr << "can't open file!" << filename << std::endl;
+        return false;
+    }
+    std::getline(file, line);// throw header
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<std::string> row;
+        while (std::getline(ss, value, ',')) {}
+        totalRecord++;
+        value.pop_back();
+        if (value == "Desk")
+            countings[Classes::Desk]++;
+        else if (value == "Apple")
+            countings[Classes::Apple]++;
+        else if (value == "Blackplum")
+            countings[Classes::Blackplum]++;
+        else if (value == "Dongzao")
+            countings[Classes::Dongzao]++;
+        else if (value == "Grape")
+            countings[Classes::Grape]++;
+        else if (value == "Peach")
+            countings[Classes::Peach]++;
+        else if (value == "Yellowpeach")
+            countings[Classes::Yellowpeach]++;
+    }
+    file.close();
+    for (int i = 0; i < Classes::counter; i++)
+        prob[i] = static_cast<float>(countings[i]) / totalRecord;
+    delete[] countings;
+    return true;
+}
+bool StudySamples(StaticPara* classParas){
+    namespace fs = std::filesystem;
+    for (unsigned int suitID = 0; suitID < 3; suitID++){// has sampled 3 suit of samples
+        std::string suitFolderPath = "../sampling/suit" + std::to_string(suitID + 1) + "/";
+        for (unsigned int classID = 0; classID < Classes::counter; classID++){
+            std::string classFolderPath = suitFolderPath + classFolderNames[classID] + "/";
+            if (!fs::exists(classFolderPath))
+                continue;
+            for (const auto& entry : fs::recursive_directory_iterator(classFolderPath)) {
+                classParas[classID].Sampling(entry.path());
+            }
+        }
+    }
+    return true;
+}
+};

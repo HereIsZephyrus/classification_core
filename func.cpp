@@ -1,5 +1,6 @@
 #include "func.hpp"
 
+std::string classFolderNames[Classes::counter] = {"desk","apple","blackplum","dongzao","grape","peach","yellowpeach"};
 namespace tcb{
 bool TopHat(cv::Mat &image,int xSize,int ySize){
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(xSize, ySize));
@@ -40,9 +41,9 @@ bool rgb2gray(cv::Mat &image){
     return true;
 }
 bool Sobel(cv::Mat &image,int dx,int dy,int bandwidth){
-    cv::Mat sobelY;
-    cv::Sobel(image, sobelY, CV_64F, 0, 1, bandwidth);
-    cv::convertScaleAbs(sobelY, image);
+    cv::Mat sobeled;
+    cv::Sobel(image, sobeled, CV_64F, dx, dy, bandwidth);
+    cv::convertScaleAbs(sobeled, image);
     if (SHOW_WINDOW){
         cv::imshow("Sobel Image (Vertical Lines)", image);
         cv::waitKey(0);
@@ -104,5 +105,49 @@ bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry) {
                     image.at<uchar>(y+j,x+i) = 255;
     }
     return true;
+}
+};
+namespace bayers {
+void StaticPara::InitClassType(Classes ID){
+    recordNum = 0;
+    classID = ID;
+    mu.clear();
+    sigma.clear();
+    mu.reserve(Demisions::dim);
+    sigma.reserve(Demisions::dim);
+    return;
+}
+void StaticPara::Sampling(const std::string& entryPath){
+    cv::Mat patch = cv::imread(entryPath);
+    if (patch.empty()){
+        std::cerr << "Image not found!" << std::endl;
+        return;
+    }
+    std::vector<cv::Mat> channels;
+    cv::split(patch, channels);
+    cv::Mat grayImage;
+    cv::cvtColor(patch, grayImage, cv::COLOR_BGR2GRAY);
+    channels.push_back(grayImage);
+    cv::Mat sobelx,sobely,magnitude,angle;
+    cv::Sobel(patch, sobelx, CV_64F, 1, 0, 3);
+    cv::Sobel(patch, sobely, CV_64F, 0, 1, 3);
+    cv::cartToPolar(sobelx, sobely, magnitude, angle, true);
+    channels.push_back(magnitude);
+    const unsigned int patchRows = patch.rows, patchCols = patch.cols;
+    for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
+        for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
+            cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
+            for (unsigned int i = 0; i < Demisions::dim; i++){
+                cv::Mat viewingChannel = channels[i];
+                cv::Mat viewingPatch = viewingChannel(window);
+                cv::Scalar mean, stddev;
+                cv::meanStdDev(viewingPatch, mean, stddev);
+                mu[i].push_back(mean[0]);
+                sigma[i].push_back(stddev[0]);
+                std::cout<<i<<' '<<mean[0]<<" "<<stddev[0]<<std::endl;
+            }
+        }
+    }
+    return;
 }
 };
