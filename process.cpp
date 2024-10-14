@@ -481,7 +481,7 @@ bool StudySamples(StaticPara* classParas){
         classParas[classID].printInfo();
     return true;
 }
-bool BayesClassify(const cv::Mat& rawimage,BayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
+bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
     int rows = rawimage.rows, cols = rawimage.cols;
     for (int r = classifierKernelSize/2; r < rows - classifierKernelSize/2; r+=classifierKernelSize/2){
         std::vector<Classes> rowClasses;
@@ -490,8 +490,10 @@ bool BayesClassify(const cv::Mat& rawimage,BayesClassifier* classifer,std::vecto
             bool lastColCheck = (c == cols - classifierKernelSize/2);
             cv::Rect window(r - classifierKernelSize/2, c - classifierKernelSize/2 , classifierKernelSize - lastRowCheck, classifierKernelSize - lastColCheck);   
             std::vector<cv::Mat> channels;
+            std::map<Classes,float> means;
             tcb::GenerateFeatureChannels(rawimage(window), channels);
-            rowClasses.push_back(classifer->Predict(channels));
+            tcb::CalcChannelMeans(channels, means);
+            rowClasses.push_back(classifer->Predict(means));
         }
         patchClasses.push_back(rowClasses);
     }
@@ -507,7 +509,7 @@ bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
                 continue;
             }
             if ((*col) != (*(col-1)))//horizontalEdgeCheck
-                temprow.push_back(Classes::edge);
+                temprow.push_back(Classes::Edge);
             else
                 temprow.push_back(*col);
             if ((col+1) == row->end())// manually add the last element
@@ -524,7 +526,7 @@ bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
             if (*col == *diagonalCol)
                 temprow.push_back(*col);
             else
-                temprow.push_back(Classes::edge);
+                temprow.push_back(Classes::Edge);
             col++;
         }
         for (;col != row->end(); col++,diagonalCol++){
@@ -534,7 +536,7 @@ bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
             if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
                 temprow.push_back(*col);
             else
-                temprow.push_back(Classes::edge);
+                temprow.push_back(Classes::Edge);
             if ((col+1) == row->end())// manually add the last element
                 temprow.push_back(*col);
         }
@@ -550,7 +552,7 @@ bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
             if (*col == *diagonalCol)
                 temprow.push_back(*col);
             else
-                temprow.push_back(Classes::edge);
+                temprow.push_back(Classes::Edge);
             col++;
         }
         for (;col != row->end(); col++,diagonalCol++){
@@ -560,7 +562,7 @@ bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
             if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
                 temprow.push_back(*col);
             else
-                temprow.push_back(Classes::edge);
+                temprow.push_back(Classes::Edge);
             if ((col+1) == row->end())// manually add the last element
                 temprow.push_back(*col);
         }

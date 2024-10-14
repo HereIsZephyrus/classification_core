@@ -33,7 +33,7 @@ int BayersMethod(const cv::Mat& rawimage){
     for (unsigned int classID = 0; classID < classesNum; classID++)
         classParas[classID].InitClassType(static_cast<Classes>(classID));
     StudySamples(classParas);
-    BasicNaiveBayesClassifier* basicClassifiers = new BasicNaiveBayesClassifier();
+    NaiveBayesClassifier* basicClassifiers = new NaiveBayesClassifier();
     basicClassifiers->Train(classParas,classProbs);
     ClassMat patchClasses,pixelClasses;
     BayesClassify(rawimage,basicClassifiers,patchClasses);
@@ -42,6 +42,9 @@ int BayersMethod(const cv::Mat& rawimage){
     GenerateClassifiedImage(rawimage,classified,pixelClasses);
     delete[] classProbs;
     delete[] classParas;
+    cv::imshow("classified Image", classified);
+    cv::waitKey(0);
+    cv::destroyWindow("classified Image");
     return 0;
 }
 int FisherMethod(){

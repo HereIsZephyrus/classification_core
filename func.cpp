@@ -132,15 +132,29 @@ bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels
     channels.push_back(angle);
     return true;
 }
-};
+bool CalcChannelMeans(const std::vector<cv::Mat> & channels, std::map<Classes,float> & means){
+    means.clear();
+    for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
+        cv::Mat temp = (*it).clone();
+        means.push_back(cv::mean(temp)[0]);
+    }
+    return true;
+}
+};//namespace tcb
 namespace bayes {
+float CalcConv(const std::vector<float>& x, float avgx, const std::vector<float>& y, float avgy){
+    size_t n = x.size();
+    double res = 0;
+    for (size_t i = 0; i<n; i++)
+        res = res + (x[i] - avgx) * (y[i] - avgy);
+    res /= (n-1);
+    return res;
+}
 void StaticPara::InitClassType(Classes ID){
     recordNum = 0;
     classID = ID;
     mu.clear();
     sigma.clear();
-    mu.reserve(Demisions::dim);
-    sigma.reserve(Demisions::dim);
     return;
 }
 void StaticPara::Sampling(const std::string& entryPath){
@@ -160,43 +174,99 @@ void StaticPara::Sampling(const std::string& entryPath){
                 cv::Mat viewingPatch = viewingChannel(window);
                 cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
-                mu[i].push_back(mean[0]);
-                sigma[i].push_back(stddev[0]);
+                mu.push_back(mean[0]);
+                sigma.push_back(stddev[0]);
             }
             recordNum++;
         }
     }
     return;
 }
-float StaticPara::combineMu(pfloat begin,pfloat end){
+float StaticPara::CombineMu(int begin,int end) const{
     double res = 0;
-    unsigned int num = 0;
-    for (pfloat it = begin; it != end; it++, num++)
-        res += *it;
-    res /= num;
+    for (int i = begin; i < end; i++)
+        res += mu[i];
+    res /= (end - begin);
     return static_cast<float>(res);
 }
-float StaticPara::combineSigma(pfloat begin,pfloat end){
+float StaticPara::CombineSigma(int begin,int end) const{
     double res;
     unsigned int num = 0;
-    for (pfloat it = begin; it != end; it++, num++)
-        res += (*it)*(*it);
-    res /= num;
+    for (int i = begin; i < end; i++)
+        res += sigma[i] * sigma[i];
+    res /= (end - begin);
     res = std::sqrt(res);
     return static_cast<float>(res);
 }
 void StaticPara::printInfo(){
     std::cout<<classFolderNames[classID]<<" sampled "<<recordNum<<std::endl;
     for (unsigned int dim = 0; dim < Demisions::dim; dim++)
-        std::cout<<"dim"<<dim<<": mu = "<<combineMu(mu[dim].begin(),mu[dim].end())<<", sigma = "<<combineSigma(sigma[dim].begin(),sigma[dim].end())<<std::endl;
+        std::cout<<"dim"<<dim<<": mu = "<<CombineMu(0,recordNum)<<", sigma = "<<CombineSigma(0,recordNum)<<std::endl;
 }
-float BasicNaiveBayesClassifier::CalculateClassProbability(){
+float NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x){
+    float res = para[static_cast<Classes>(classID)].w;
+
     return 0.0f;
 }
-Classes BasicNaiveBayesClassifier::Predict(const std::vector<cv::Mat>& channels){
-    return Classes::unknown;
+Classes NaiveBayesClassifier::Predict(const std::map<Classes,float>& x){
+    float maxProb = 0.0f;
+    Classes bestClass = Classes::Unknown;
+    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+        float prob = CalculateClassProbability(classID,x);
+        if (prob > maxProb) {
+            maxProb = prob;
+            bestClass = static_cast<Classes>(classID);
+        }
+    }
+    return bestClass;
 }
-void BasicNaiveBayesClassifier::Train(const StaticPara* densityParas,float* classProbs){
-
-}
+void NaiveBayesClassifier::Train(const StaticPara* densityParas,const float* classProbs){
+    const unsigned int classNum = Classes::counter;
+    for (unsigned int classID = 0; classID < classNum; classID++){
+        para[static_cast<Classes>(classID)].mu = densityParas[classID].CombineMu(0,densityParas[classID].getRecordsNum());
+        para[static_cast<Classes>(classID)].sigma = densityParas[classID].CombineSigma(0,densityParas[classID].getRecordsNum());
+        para[static_cast<Classes>(classID)].w = classProbs[classID];
+    }
+    return;
 };
+
+float NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const std::map<Classes,float>& x){
+    return 0.0f;
+}
+Classes NonNaiveBayesClassifier::Predict(const std::map<Classes,float>& x){
+    float maxProb = 0.0f;
+    Classes bestClass = Classes::Unknown;
+    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+        float prob = CalculateClassProbability(classID,x);
+        if (prob > maxProb) {
+            maxProb = prob;
+            bestClass = static_cast<Classes>(classID);
+        }
+    }
+    return bestClass;
+}
+void NonNaiveBayesClassifier::Train(const StaticPara* densityParas,const float* classProbs){
+    const unsigned int classNum = Classes::counter;
+    convMat = new float*[classNum];
+    invConvMat = new float*[classNum];
+    for (unsigned int classID = 0; classID < classNum; classID++){
+        convMat[classID] = new float[classNum];
+        invConvMat[classID] = new float[classNum];
+    }
+    for (unsigned int classID = 0; classID < classNum; classID++){
+        para[static_cast<Classes>(classID)].mu = densityParas[classID].CombineMu(0,densityParas[classID].getRecordsNum());
+        para[static_cast<Classes>(classID)].sigma = densityParas[classID].CombineSigma(0,densityParas[classID].getRecordsNum());
+        para[static_cast<Classes>(classID)].w = classProbs[classID];
+    }
+    for (unsigned int classX = 0; classX < classNum; classX++){
+        convMat[classX][classX] = para[static_cast<Classes>(classX)].sigma;
+        for (unsigned int classY = classX + 1; classY < classNum; classY++){
+            float conv = CalcConv(densityParas[classX].getMu(),para[static_cast<Classes>(classX)].mu,densityParas[classY].getMu(),para[static_cast<Classes>(classY)].mu);
+            convMat[classX][classY] = conv;
+            convMat[classY][classX] = conv;
+        }
+    }
+
+    return;
+};
+};//namespace bayes

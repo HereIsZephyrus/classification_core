@@ -19,7 +19,7 @@ typedef std::vector<std::vector<Classes>> ClassMat;
 namespace bayes{
 bool CalcClassProb(float* prob);
 bool StudySamples(StaticPara* classParas);
-bool BayesClassify(const cv::Mat& rawimage,BayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses);
+bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses);
 bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses);
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const ClassMat& pixelClasses);
 };
