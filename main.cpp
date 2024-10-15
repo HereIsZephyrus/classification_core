@@ -42,8 +42,8 @@ int BayersMethod(const cv::Mat& correctImage){
     std::vector<Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
-    //NaiveBayesClassifier* classifier = new NaiveBayesClassifier();
-    NonNaiveBayesClassifier* classifier = new NonNaiveBayesClassifier();
+    NaiveBayesClassifier* classifier = new NaiveBayesClassifier();
+    //NonNaiveBayesClassifier* classifier = new NonNaiveBayesClassifier();
     classifier->Train(dataset,classProbs);
     delete[] classProbs;
     ClassMat patchClasses,pixelClasses;

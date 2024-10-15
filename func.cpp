@@ -240,7 +240,7 @@ Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
 }
 */
 void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
-    size_t featureNum = samples[0].getFeatures().size(); //select all
+    featureNum = samples[0].getFeatures().size(); //select all
     para.clear();
     unsigned int classNum = Classes::counter;
     std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
