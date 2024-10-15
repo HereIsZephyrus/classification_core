@@ -85,7 +85,7 @@ public:
     Classes getLabel() const{return label;}
     const vFloat& getFeatures() const{return features;}
 };
-double CalcConv(const std::vector<double>& x, const std::vector<double>& y);
+double CalcConv(const vFloat& x, const vFloat& y);
 template <class paraForm>
 class BayesClassifier{
 protected:
@@ -97,14 +97,30 @@ protected:
 public:
     BayesClassifier(){}
     ~BayesClassifier(){}
-    virtual Classes Predict(const vFloat& x) = 0;
+    Classes Predict(const vFloat& x){
+        double maxProb = -1.0f;
+        Classes bestClass = Classes::Unknown;
+        for (unsigned int classID = 0; classID < Classes::counter; classID++){
+            double prob = CalculateClassProbability(classID,x);
+            if (prob > maxProb) {
+                maxProb = prob;
+                bestClass = static_cast<Classes>(classID);
+            }
+        }
+        return bestClass;
+    }
     virtual void Train(const std::vector<Sample>& samples,const float* classProbs) = 0;
-    void setFeatureNum(size_t num){featureNum = num;}
     const std::string& printPhoto() const{return outputPhotoName;}
 };
 struct BasicParaList{
     float w;
     std::vector<double> mu,sigma;
+};
+struct convParaList{
+    float w;
+    std::vector<double> mu;
+    float** convMat;
+    float** invMat;
 };
 class NaiveBayesClassifier : public BayesClassifier<BasicParaList>{
 protected:
@@ -112,20 +128,20 @@ protected:
 public:
     NaiveBayesClassifier(){outputPhotoName = "naiveBayes.png";};
     ~NaiveBayesClassifier(){}
-    Classes Predict(const vFloat& x);
+    //Classes Predict(const vFloat& x);
     void Train(const std::vector<Sample>& samples,const float* classProbs);
 };
-class NonNaiveBayesClassifier : public NaiveBayesClassifier{
-    float ** convMat;
-    float ** invMat;
+class NonNaiveBayesClassifier : public BayesClassifier<convParaList>{
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x);
-    void CalcConvMat();
+    void CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket);
+    void LUdecomposition(float** matrix, float** L, float** U);
+    double determinant(float** matrix);
     static constexpr float lambda = 0.1f;//regularization parameter
 public:
-    NonNaiveBayesClassifier(){convMat = nullptr;invMat = nullptr;outputPhotoName = "nonNaiveBayes.png";}
+    NonNaiveBayesClassifier(){outputPhotoName = "nonNaiveBayes.png";}
     ~NonNaiveBayesClassifier();
-    Classes Predict(const vFloat& x);
+    //Classes Predict(const vFloat& x);
     void Train(const std::vector<Sample>& samples,const float* classProbs);
 };
 

@@ -494,7 +494,9 @@ bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset){
     }
     return true;
 }
-bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
+/*
+template <class paraForm>
+bool BayesClassify(const cv::Mat& rawimage,BayesClassifier<paraForm>* classifer,std::vector<std::vector<Classes>>& patchClasses){
     int rows = rawimage.rows, cols = rawimage.cols;
     for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
         std::vector<Classes> rowClasses;
@@ -513,6 +515,7 @@ bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::
     }
     return true;
 }
+*/
 bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
     ClassMat::const_iterator row = patchClasses.begin();
     { //tackle the first line

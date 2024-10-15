@@ -148,7 +148,7 @@ bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data){
 }
 };//namespace tcb
 namespace bayes {
-double CalcConv(const std::vector<double>& x, const std::vector<double>& y){
+double CalcConv(const vFloat& x, const vFloat& y){
     double res = 0;
     const size_t n = x.size();
     double xAvg = 0.0f, yAvg = 0.0f;
@@ -203,17 +203,17 @@ float Sample::calcMean(const vFloat& data){
     return static_cast<float>(sum / data.size());
 }
 double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    double res = log(para[static_cast<Classes>(classID)].w );
-    //std::cout<<featureNum<<std::endl;
+    double res = para[static_cast<Classes>(classID)].w;
     for (unsigned int d = 0; d < featureNum; d++){
         float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
         float vars = para[static_cast<Classes>(classID)].sigma[d] * para[static_cast<Classes>(classID)].sigma[d];
-        double exponent = (static_cast<double>(- pd * pd / (2 * vars)));
+        double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
         double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
-        res += log(normalize) * exponent;
+        res *= normalize * exponent;
     }
     return res;
 }
+/*
 Classes NaiveBayesClassifier::Predict(const vFloat& x){
     double maxProb = -1.0f;
     Classes bestClass = Classes::Unknown;
@@ -226,6 +226,19 @@ Classes NaiveBayesClassifier::Predict(const vFloat& x){
     }
     return bestClass;
 }
+Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
+    double maxProb = -1.0f;
+    Classes bestClass = Classes::Unknown;
+    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+        double prob = CalculateClassProbability(classID,x);
+        if (prob > maxProb) {
+            maxProb = prob;
+            bestClass = static_cast<Classes>(classID);
+        }
+    }
+    return bestClass;
+}
+*/
 void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     size_t featureNum = samples[0].getFeatures().size(); //select all
     para.clear();
@@ -277,28 +290,33 @@ void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float*
     return;
 };
 double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    return 0.0f;
-}
-Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
-    double maxProb = -1.0f;
-    Classes bestClass = Classes::Unknown;
-    for (unsigned int classID = 0; classID < Classes::counter; classID++){
-        double prob = CalculateClassProbability(classID,x);
-        if (prob > maxProb) {
-            maxProb = prob;
-            bestClass = static_cast<Classes>(classID);
-        }
+    const unsigned int classNum = Classes::counter;
+    double res = log(para[static_cast<Classes>(classID)].w);
+    res -= log(determinant(para[classID].convMat))/2;
+    vFloat pd = x;
+    for (unsigned int d = 0; d < featureNum; d++)
+        pd[d] = x[d] - para[static_cast<Classes>(classID)].mu[d];
+    vFloat sumX(featureNum, 0.0);
+    for (size_t i = 0; i < featureNum; ++i)
+        for (size_t j = 0; j < featureNum; ++j)
+            sumX[i] += x[j] * para[classID].invMat[i][j];
+    for (unsigned int d = 0; d < featureNum; d++){
+        float sum = 0.0f;
+        for (unsigned int j = 0; j < featureNum; j++)
+            sum += sumX[j] * x[j];
+        res -= sum / 2;
     }
-    return bestClass;
+    return res;
 }
-void NonNaiveBayesClassifier::CalcConvMat(){
+void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket){
+    //const unsigned int classNum = Classes::counter;
     convMat = new float*[featureNum];
     for (size_t i = 0; i < featureNum; i++)
         convMat[i] = new float[featureNum];
     for (size_t i = 0; i < featureNum; i++){
         convMat[i][i] = 1.0f;
         for (size_t j = i+1; j < featureNum; j++){
-            double conv = CalcConv(para[i].mu,para[j].mu);
+            double conv = CalcConv(bucket[i],bucket[j]);
             convMat[i][j] = conv * (1.0f - lambda);
             convMat[j][i] = conv * (1.0f - lambda);
         }
@@ -341,21 +359,94 @@ void NonNaiveBayesClassifier::CalcConvMat(){
     return;
 }
 void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
-    NaiveBayesClassifier::Train(samples,classProbs);
-    CalcConvMat();
-
+    featureNum = samples[0].getFeatures().size(); //select all
+    para.clear();
+    para.reserve(Classes::counter);
+    unsigned int classNum = Classes::counter;
+    std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
+    for (int i = 0; i < classNum; i++){
+        classifiedFeaturesAvg[i].assign(featureNum,0.0);
+        classifiedFeaturesVar[i].assign(featureNum,0.0);
+    }
+    std::vector<size_t> classRecordNum(classNum,0);
+    std::vector<std::vector<vFloat>> sampleBucket(classNum);
+    for (unsigned int i = 0; i < classNum; i++)
+        sampleBucket[i].reserve(featureNum);
+    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        unsigned int label = static_cast<unsigned int>(it->getLabel());
+        const vFloat& sampleFeature = it->getFeatures();
+        for (unsigned int i = 0; i < featureNum; i++){
+            classifiedFeaturesAvg[label][i] += sampleFeature[i];
+            sampleBucket[label][i].push_back(sampleFeature[i]);
+        }
+        classRecordNum[label]++;
+    }
+    for (unsigned int i = 0; i < classNum; i++){
+        for (unsigned int j = 0; j < featureNum; j++)
+            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
+        CalcConvMat(para[i].convMat,para[i].invMat,sampleBucket[i]);
+    }
+    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        unsigned int label = static_cast<unsigned int>(it->getLabel());
+        const vFloat& sampleFeature = it->getFeatures();
+        for (unsigned int i = 0; i < featureNum; i++)
+            classifiedFeaturesVar[label][i] += (sampleFeature[i] - classifiedFeaturesAvg[label][i]) * (sampleFeature[i] - classifiedFeaturesAvg[label][i]);
+    }
+    for (unsigned int i = 0; i < classNum; i++)
+        for (unsigned int j = 0; j < featureNum; j++)
+            classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
     return;
 };
-NonNaiveBayesClassifier::~NonNaiveBayesClassifier(){
-    if(convMat != nullptr){
-        for(size_t i = 0;i < featureNum;i++)
-            delete[] convMat[i];
-        delete[] convMat;
+void NonNaiveBayesClassifier::LUdecomposition(float** matrix, float** L, float** U){
+    for (int i = 0; i < featureNum; ++i) { // init LU
+        for (int j = 0; j < featureNum; ++j) {
+            L[i][j] = 0;
+            U[i][j] = matrix[i][j];
+        }
+        L[i][i] = 1;
     }
-    if(invMat != nullptr){
-        for(size_t i = 0;i < featureNum;i++)
-            delete[] invMat[i];
-        delete[] invMat;
+    for (int i = 0; i < featureNum; ++i) { // LU decomposition
+        for (int j = i; j < featureNum; ++j) 
+            for (int k = 0; k < i; ++k) 
+                U[i][j] -= L[i][k] * U[k][j];
+        for (int j = i + 1; j < featureNum; ++j) {
+            for (int k = 0; k < i; ++k)
+                L[j][i] -= L[j][k] * U[k][i];
+            L[j][i] = U[j][i] / U[i][i];
+        }
+    }
+}
+double NonNaiveBayesClassifier::determinant(float** matrix) {
+    float** L = new float*[featureNum];
+    float** U = new float*[featureNum];
+    for (size_t i = 0; i < featureNum; i++){
+        L[i] = new float[featureNum];
+        U[i] = new float[featureNum];
+    }
+    LUdecomposition(matrix, L, U);
+    double det = 1.0;
+    for (int i = 0; i < featureNum; ++i)
+        det *= U[i][i];
+    for (size_t i = 0; i < featureNum; i++){
+        delete[] L[i];
+        delete[] U[i];
+    }
+    delete[] L;
+    delete[] U;
+    return det;
+}
+NonNaiveBayesClassifier::~NonNaiveBayesClassifier(){
+    for (std::vector<convParaList>::const_iterator it = para.begin(); it != para.end(); it++){
+        if(it->convMat != nullptr){
+            for(size_t i = 0;i < featureNum;i++)
+                delete[] it->convMat[i];
+            delete[] it->convMat;
+        }
+        if(it->invMat != nullptr){
+            for(size_t i = 0;i < featureNum;i++)
+                delete[] it->invMat[i];
+            delete[] it->invMat;
+        }
     }
 }
 };//namespace bayes
