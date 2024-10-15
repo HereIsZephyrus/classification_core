@@ -34,8 +34,8 @@ enum Classes : unsigned int{
 extern std::string classFolderNames[Classes::counter];
 extern std::map<Classes,cv::Scalar> classifyColor;
 enum Demisions : unsigned int{
-    blue,
-    green,
+    //blue,
+    //green,
     red,
     gray,
     gradient,
@@ -85,7 +85,7 @@ class BayesClassifier{
 protected:
     float T;
     std::map<Classes,paraForm> para;
-    virtual float CalculateClassProbability(unsigned int classID,const vFloat& x) = 0;
+    virtual double CalculateClassProbability(unsigned int classID,const vFloat& x) = 0;
 public:
     BayesClassifier(){}
     ~BayesClassifier(){}
@@ -98,8 +98,7 @@ struct BasicParaList{
 };
 class NaiveBayesClassifier : public BayesClassifier<BasicParaList>{
 protected:
-    float CalculateClassProbability(unsigned int classID,const vFloat& x);
-    const static float lambda = 0.1f;//regularization parameter
+    double CalculateClassProbability(unsigned int classID,const vFloat& x);
 public:
     NaiveBayesClassifier(){};
     ~NaiveBayesClassifier(){}
@@ -108,7 +107,8 @@ public:
 };
 class NonNaiveBayesClassifier : public NaiveBayesClassifier{
 protected:
-    float CalculateClassProbability(unsigned int classID,const vFloat& x);
+    double CalculateClassProbability(unsigned int classID,const vFloat& x);
+    static constexpr float lambda = 0.1f;//regularization parameter
     vFloat** convMat;
     vFloat** invConvMat;
 public:

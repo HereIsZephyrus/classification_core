@@ -7,62 +7,8 @@
 #include <filesystem>
 #include <vector>
 #include "process.hpp"
-namespace hist{
-bool vignetteCorrection(const cv::Mat& inputImage, cv::Mat& convexImage) {
-    CV_Assert(inputImage.type() == CV_8UC3);
-    convexImage = inputImage.clone();
-    int rows = inputImage.rows;
-    int cols = inputImage.cols;
-    cv::Mat weight = cv::Mat::zeros(rows, cols, CV_32F);
-    cv::Point center(cols *2 / 5, rows / 2);
-    float maxDist = std::sqrt(center.x * center.x + center.y * center.y);
-    for (int y = 0; y < rows; ++y) {
-        for (int x = 0; x < cols; ++x) {
-            float dist = std::sqrt((x - center.x) * (x - center.x) + (y - center.y) * (y - center.y));
-            weight.at<float>(y, x) = 0.7f + (dist / maxDist)/3.0f;
-        }
-    }
-    for (int c = 0; c < 3; ++c)
-        for (int y = 0; y < rows; ++y)
-            for (int x = 0; x < cols; ++x)
-                convexImage.at<cv::Vec3b>(y, x)[c] = cv::saturate_cast<uchar>(
-                    inputImage.at<cv::Vec3b>(y, x)[c] * weight.at<float>(y, x)
-                );
-    if (SHOW_WINDOW){
-        cv::imshow("vCorrection Image", convexImage);
-        cv::waitKey(0);
-        cv::destroyWindow("vCorrection Image");
-    }
-    return true;
-}
 
-bool fetchLines(cv::Mat &image){
-    std::vector<cv::Mat> channels;
-    cv::split(image, channels);
-    cv::Mat redChannel = channels[2];
-    cv::Mat greenChannel = channels[1];
-    cv::Mat blueChannel = channels[0];
-    for (int y = 0; y < image.rows; y++)
-        for (int x = 0; x < image.cols; x++){
-            if ((redChannel.at<uchar>(y, x) > 20) || (greenChannel.at<uchar>(y, x) > 20) || (blueChannel.at<uchar>(y, x) > 20)){
-                blueChannel.at<uchar>(y, x) = 255;
-                redChannel.at<uchar>(y, x) = 255;
-                greenChannel.at<uchar>(y, x) = 255;
-            }
-        }
-    std::vector<cv::Mat> modifiedChannels;
-    modifiedChannels.push_back(blueChannel);
-    modifiedChannels.push_back(greenChannel);
-    modifiedChannels.push_back(redChannel);
-    cv::merge(modifiedChannels, image);
-    if (SHOW_WINDOW){
-        cv::imshow("Line Detect Image", image);
-        cv::waitKey(0);
-        cv::destroyWindow("Line Detect Image");
-    }
-    return true;
-}
-bool fetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage){
+bool FetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage){
     std::vector<cv::Mat> channels;
     cv::split(noShadowImage, channels);
     cv::Mat redChannel = channels[2];
@@ -139,12 +85,15 @@ bool fetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage){
     return true;
 }
 bool CorrectImage(const cv::Mat& inputImage,cv::Mat& image){
-    vignetteCorrection(inputImage,image);
+    hist::vignetteCorrection(inputImage,image);
     tcb::GaussianSmooth(image,25,25,0);
     tcb::TopHat(image,20,20);
     tcb::GaussianSmooth(image,25,1,0);
     return true;
 }
+
+namespace hist{
+
 bool SmoothImage(const cv::Mat& correctImage,cv::Mat& image) {
     cv::Mat templeteImage = image.clone();
     cv::Mat maskImage = correctImage.clone();
@@ -198,7 +147,60 @@ bool SmoothImage(const cv::Mat& correctImage,cv::Mat& image) {
     //cv::imwrite("flatImage.png", image);
     return true;
 }
+bool vignetteCorrection(const cv::Mat& inputImage, cv::Mat& convexImage) {
+    CV_Assert(inputImage.type() == CV_8UC3);
+    convexImage = inputImage.clone();
+    int rows = inputImage.rows;
+    int cols = inputImage.cols;
+    cv::Mat weight = cv::Mat::zeros(rows, cols, CV_32F);
+    cv::Point center(cols *2 / 5, rows / 2);
+    float maxDist = std::sqrt(center.x * center.x + center.y * center.y);
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x < cols; ++x) {
+            float dist = std::sqrt((x - center.x) * (x - center.x) + (y - center.y) * (y - center.y));
+            weight.at<float>(y, x) = 0.6f + (dist / maxDist)/2.5f;
+        }
+    }
+    for (int c = 0; c < 3; ++c)
+        for (int y = 0; y < rows; ++y)
+            for (int x = 0; x < cols; ++x)
+                convexImage.at<cv::Vec3b>(y, x)[c] = cv::saturate_cast<uchar>(
+                    inputImage.at<cv::Vec3b>(y, x)[c] * weight.at<float>(y, x)
+                );
+    if (SHOW_WINDOW){
+        cv::imshow("vCorrection Image", convexImage);
+        cv::waitKey(0);
+        cv::destroyWindow("vCorrection Image");
+    }
+    return true;
+}
 
+bool fetchLines(cv::Mat &image){
+    std::vector<cv::Mat> channels;
+    cv::split(image, channels);
+    cv::Mat redChannel = channels[2];
+    cv::Mat greenChannel = channels[1];
+    cv::Mat blueChannel = channels[0];
+    for (int y = 0; y < image.rows; y++)
+        for (int x = 0; x < image.cols; x++){
+            if ((redChannel.at<uchar>(y, x) > 20) || (greenChannel.at<uchar>(y, x) > 20) || (blueChannel.at<uchar>(y, x) > 20)){
+                blueChannel.at<uchar>(y, x) = 255;
+                redChannel.at<uchar>(y, x) = 255;
+                greenChannel.at<uchar>(y, x) = 255;
+            }
+        }
+    std::vector<cv::Mat> modifiedChannels;
+    modifiedChannels.push_back(blueChannel);
+    modifiedChannels.push_back(greenChannel);
+    modifiedChannels.push_back(redChannel);
+    cv::merge(modifiedChannels, image);
+    if (SHOW_WINDOW){
+        cv::imshow("Line Detect Image", image);
+        cv::waitKey(0);
+        cv::destroyWindow("Line Detect Image");
+    }
+    return true;
+}
 bool CreateMaskCr(const cv::Mat& rawImage, cv::Mat& totalMask) {
     cv::Mat testChannel = rawImage.clone();
     tcb::BoxSmooth(testChannel,70,70);
@@ -483,15 +485,16 @@ bool StudySamples(StaticPara* classParas){
 }
 bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
     int rows = rawimage.rows, cols = rawimage.cols;
-    for (int r = classifierKernelSize/2; r < rows - classifierKernelSize/2; r+=classifierKernelSize/2){
+    for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
         std::vector<Classes> rowClasses;
-        bool lastRowCheck = (r == rows - classifierKernelSize/2);
-        for (int c = classifierKernelSize/2; c < cols - classifierKernelSize/2; c+=classifierKernelSize/2){
-            bool lastColCheck = (c == cols - classifierKernelSize/2);
-            cv::Rect window(r - classifierKernelSize/2, c - classifierKernelSize/2 , classifierKernelSize - lastRowCheck, classifierKernelSize - lastColCheck);   
+        bool lastRowCheck = (r >= (rows - classifierKernelSize));
+        for (int c = classifierKernelSize/2; c <= cols - classifierKernelSize; c+=classifierKernelSize/2){
+            bool lastColCheck = (c >= (cols - classifierKernelSize));
+            cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
+            cv::Mat sample = rawimage(window);
             std::vector<cv::Mat> channels;
             vFloat means;
-            tcb::GenerateFeatureChannels(rawimage(window), channels);
+            tcb::GenerateFeatureChannels(sample, channels);
             tcb::CalcChannelMeans(channels, means);
             rowClasses.push_back(classifer->Predict(means));
         }
@@ -573,12 +576,17 @@ bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const ClassMat& pixelClasses){
     classified = cv::Mat::zeros(rawimage.rows, rawimage.cols, CV_8UC3);
     classified.setTo(classifyColor[Unknown]);
-    int x = 0,y = 0;
+    int y = 0;
     for (ClassMat::const_iterator row = pixelClasses.begin(); row != pixelClasses.end(); row++,y+=classifierKernelSize/2){
+        int x = 0;
         for (vClasses::const_iterator col = row->begin(); col != row->end(); col++,x+=classifierKernelSize/2){
+            if (x >= rawimage.cols - classifierKernelSize/2)
+                break;
             cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
             classified(window) = classifyColor[*col];
         }
+        if (y >= rawimage.rows - classifierKernelSize/2)
+            break;
     }
     return true;
 }

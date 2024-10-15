@@ -4,12 +4,19 @@
 #include "func.hpp"
 #include "process.hpp"
 
-int HistMethod(const cv::Mat& rawimage){
+void PreProcess(const cv::Mat& rawImage, cv::Mat&processed){
+    cv::Mat correctImage;
+    CorrectImage(rawImage,correctImage);
+    processed = correctImage.clone();
+    FetchShadow(correctImage,processed);
+    return;
+}
+int HistMethod(const cv::Mat& rawImage){
     using namespace hist;
     cv::Mat correctImage;
-    CorrectImage(rawimage,correctImage);
+    CorrectImage(rawImage,correctImage);
     cv::Mat flatImage = correctImage.clone();
-    fetchShadow(correctImage,flatImage);
+    FetchShadow(correctImage,flatImage);
     SmoothImage(correctImage,flatImage);
     //cv::Mat flatImage = cv::imread("flatImage.png");
     cv::Mat totalMask;
@@ -17,14 +24,14 @@ int HistMethod(const cv::Mat& rawimage){
     cv::Mat firstConvexImage,secondConvexImage;
     FirstConvexHull(totalMask,firstConvexImage);
     SecondConvexHull(firstConvexImage,totalMask,secondConvexImage);
-    cv::Mat blendedImage = cv::max(rawimage, secondConvexImage);
+    cv::Mat blendedImage = cv::max(rawImage, secondConvexImage);
     cv::imshow("Blended Image", blendedImage);
     cv::waitKey(0);
     cv::destroyWindow("Blended Image");
-    ClassifityFruits(rawimage,correctImage,flatImage,secondConvexImage);
+    ClassifityFruits(rawImage,correctImage,flatImage,secondConvexImage);
     return 0;
 }
-int BayersMethod(const cv::Mat& rawimage){
+int BayersMethod(const cv::Mat& correctImage){
     using namespace bayes;
     unsigned int classesNum = Classes::counter;
     float* classProbs = new float[classesNum];
@@ -36,10 +43,10 @@ int BayersMethod(const cv::Mat& rawimage){
     NaiveBayesClassifier* basicClassifiers = new NaiveBayesClassifier();
     basicClassifiers->Train(classParas,classProbs);
     ClassMat patchClasses,pixelClasses;
-    BayesClassify(rawimage,basicClassifiers,patchClasses);
+    BayesClassify(correctImage,basicClassifiers,patchClasses);
     cv::Mat classified;
     DownSampling(patchClasses,pixelClasses);
-    GenerateClassifiedImage(rawimage,classified,pixelClasses);
+    GenerateClassifiedImage(correctImage,classified,pixelClasses);
     delete[] classProbs;
     delete[] classParas;
     cv::imshow("classified Image", classified);
@@ -57,21 +64,24 @@ int main() {
     std::cout << "3. Fisher Method" << std::endl;
     int type = 2;
     //std::cin>>type;
-    cv::Mat rawimage = cv::imread("../images/spot.jpeg");
-    if (rawimage.empty()) {
+    cv::Mat rawImage = cv::imread("../images/spot.jpeg");
+    if (rawImage.empty()) {
         std::cerr << "Image not found!" << std::endl;
         return -1;
     }
-    cv::imshow("raw Image", rawimage);
+    cv::Mat processed;
+    cv::imshow("raw Image", rawImage);
     cv::waitKey(0);
     cv::destroyWindow("raw Image");
     switch (type){
         case 1:
-            HistMethod(rawimage);
+            HistMethod(rawImage);
             break;
-        case 2:
-            BayersMethod(rawimage);
+        case 2:{
+            PreProcess(rawImage,processed);
+            BayersMethod(processed);
             break;
+        }
         case 3:
             break;
         default:

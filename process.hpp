@@ -2,12 +2,13 @@
 #define PROCESSHPP
 #include <opencv2/opencv.hpp>
 #include "func.hpp"
+
+bool FetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage);
+bool CorrectImage(const cv::Mat& inputImage,cv::Mat& image);
 namespace hist{
+bool SmoothImage(const cv::Mat& correctImage,cv::Mat& image);
 bool vignetteCorrection(const cv::Mat& inputImage, cv::Mat& convexImage);
 bool fetchLines(cv::Mat &image);
-bool fetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage);
-bool CorrectImage(const cv::Mat& inputImage,cv::Mat& image);
-bool SmoothImage(const cv::Mat& correctImage,cv::Mat& image);
 bool CreateMaskCr(const cv::Mat& rawImage, cv::Mat& totalMask);
 bool CreateMaskCb(const cv::Mat& rawImage, cv::Mat& totalMask);
 bool CreateMask(const cv::Mat& rawImage,cv::Mat& totalMask);

@@ -1,4 +1,5 @@
 #include <cmath>
+#include <algorithm>
 #include "func.hpp"
 
 std::string classFolderNames[Classes::counter] = 
@@ -14,6 +15,7 @@ std::map<Classes,cv::Scalar> classifyColor = {
     {Classes::Edge,cv::Scalar(255,255,255)}, // white
     {Classes::Unknown,cv::Scalar(211,211,211)}// gray
 };
+//const float bayes::NaiveBayesClassifier::lambda = 0.1f;
 namespace tcb{
 bool TopHat(cv::Mat &image,int xSize,int ySize){
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(xSize, ySize));
@@ -120,7 +122,11 @@ bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry) {
     return true;
 }
 bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels){
-    cv::split(image, channels);
+    std::vector<cv::Mat> BGRchannels;
+    cv::split(image, BGRchannels);
+    channels.clear();
+    //channels = BGRchannels;
+    channels.push_back(BGRchannels[2]);
     cv::Mat grayImage;
     cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
     channels.push_back(grayImage);
@@ -171,14 +177,16 @@ void StaticPara::Sampling(const std::string& entryPath){
     for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
+            vFloat means, sigmas;
             for (unsigned int i = 0; i < Demisions::dim; i++){
-                cv::Mat viewingChannel = channels[i];
-                cv::Mat viewingPatch = viewingChannel(window);
-                vFloat mean, stddev;
+                cv::Mat viewingPatch = channels[i](window);
+                cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
-                mu.push_back(mean);
-                sigma.push_back(stddev);
+                means.push_back(mean[0]);
+                sigmas.push_back(stddev[0]);
             }
+            mu.push_back(means);
+            sigma.push_back(sigmas);
             recordNum++;
         }
     }
@@ -210,24 +218,25 @@ void StaticPara::printInfo(){
     std::cout<<classFolderNames[classID]<<" sampled "<<recordNum<<std::endl;
     vFloat outputMu = CombineMu(0,recordNum), outputSigma = CombineSigma(0,recordNum);
     for (unsigned int d = 0; d < Demisions::dim; d++)
-        std::cout<<"dim"<<dim<<": mu = "<<outputMu[d]<<", sigma = "<<outputSigma[d]<<std::endl;
+        std::cout<<"dim"<<d+1<<": mu = "<<outputMu[d]<<", sigma = "<<outputSigma[d]<<std::endl;
     return;
 }
-float NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    float res = para[static_cast<Classes>(classID)].w;
+double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
+    double res = para[static_cast<Classes>(classID)].w;
     for (unsigned int d = 0; d < Demisions::dim; d++){
         float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
-        float vars = - pd * pd / (2 * para[static_cast<Classes>(classID)].sigma[d]);
-        float normalize = 1.0f / (sqrt(2 * CV_PI) * para[static_cast<Classes>(classID)].sigma[d]);
-        res *= normalize * exp(vars);
+        float sigma = para[static_cast<Classes>(classID)].sigma[d];
+        double vars = 1e100 * std::exp(static_cast<double>(- pd * pd / (2 * sigma * sigma)));
+        double normalize = 1.0f / (sqrt(2 * CV_PI) * para[static_cast<Classes>(classID)].sigma[d]);
+        res *= normalize * vars;
     }
     return res;
 }
 Classes NaiveBayesClassifier::Predict(const vFloat& x){
-    float maxProb = 0.0f;
+    double maxProb = -1.0f;
     Classes bestClass = Classes::Unknown;
-    for (unsigned int classID = 0; classID < Classes::counter; classID){
-        float prob = CalculateClassProbability(classID,x);
+    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+        double prob = CalculateClassProbability(classID,x);
         if (prob > maxProb) {
             maxProb = prob;
             bestClass = static_cast<Classes>(classID);
@@ -245,14 +254,14 @@ void NaiveBayesClassifier::Train(const StaticPara* densityParas,const float* cla
     return;
 };
 
-float NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
+double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     return 0.0f;
 }
 Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
-    float maxProb = 0.0f;
+    double maxProb = -1.0f;
     Classes bestClass = Classes::Unknown;
     for (unsigned int classID = 0; classID < Classes::counter; classID++){
-        float prob = CalculateClassProbability(classID,x);
+        double prob = CalculateClassProbability(classID,x);
         if (prob > maxProb) {
             maxProb = prob;
             bestClass = static_cast<Classes>(classID);
