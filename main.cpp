@@ -54,6 +54,7 @@ int BayersMethod(const cv::Mat& correctImage){
     cv::imshow("classified Image", classified);
     cv::waitKey(0);
     cv::destroyWindow("classified Image");
+    cv::imwrite(basicClassifiers->printPhoto(), classified);
     return 0;
 }
 int FisherMethod(){

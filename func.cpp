@@ -6,11 +6,11 @@ std::string classFolderNames[Classes::counter] =
 {"desk","apple","blackplum","dongzao","grape","peach","yellowpeach"};
 std::unordered_map<Classes,cv::Scalar> classifyColor = {
     {Classes::Desk,cv::Scalar(0,0,0)}, // black
-    {Classes::Apple,cv::Scalar(255,0,0)}, // red
+    {Classes::Apple,cv::Scalar(0,0,255)}, // red
     {Classes::Blackplum,cv::Scalar(255,0,255)}, // magenta
-    {Classes::Dongzao,cv::Scalar(165,42,42)}, // brzone,
+    {Classes::Dongzao,cv::Scalar(42,42,165)}, // brzone,
     {Classes::Grape,cv::Scalar(0,255,0)}, // green
-    {Classes::Peach,cv::Scalar(255,192,203)}, // pink
+    {Classes::Peach,cv::Scalar(203,192,255)}, // pink
     {Classes::Yellowpeach,cv::Scalar(0,255,255)}, // yellow    
     {Classes::Edge,cv::Scalar(255,255,255)}, // white
     {Classes::Unknown,cv::Scalar(211,211,211)}// gray
@@ -122,19 +122,17 @@ bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry) {
     return true;
 }
 bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels){
-    std::vector<cv::Mat> BGRchannels;
-    cv::split(image, BGRchannels);
+    std::vector<cv::Mat> HSVchannels;
     channels.clear();
-    channels = BGRchannels;
-    //channels.push_back(BGRchannels[2]);
-    cv::Mat grayImage;
-    cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
-    channels.push_back(grayImage);
+    cv::Mat hsvImage;
+    cv::cvtColor(image, hsvImage, cv::COLOR_BGR2HSV);
+    cv::split(hsvImage, HSVchannels);
+    channels = HSVchannels;
     cv::Mat sobelx,sobely,magnitude,angle;
     cv::Sobel(image, sobelx, CV_64F, 1, 0, 3);
     cv::Sobel(image, sobely, CV_64F, 0, 1, 3);
     cv::cartToPolar(sobelx, sobely, magnitude, angle, true);
-    channels.push_back(magnitude);
+    //channels.push_back(magnitude);
     channels.push_back(angle);
     return true;
 }
@@ -204,7 +202,7 @@ float Sample::calcMean(const vFloat& data){
 }
 double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     double res = para[static_cast<Classes>(classID)].w;
-    std::cout<<featureNum<<std::endl;
+    //std::cout<<featureNum<<std::endl;
     for (unsigned int d = 0; d < featureNum; d++){
         float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
         float vars = para[static_cast<Classes>(classID)].sigma[d] * para[static_cast<Classes>(classID)].sigma[d];

@@ -34,11 +34,10 @@ enum Classes : unsigned int{
 extern std::string classFolderNames[Classes::counter];
 extern std::unordered_map<Classes,cv::Scalar> classifyColor;
 enum Demisions : unsigned int{
-    blue,
-    green,
-    red,
-    gray,
-    gradient,
+    hue,
+    saturation,
+    value,
+    //gradient,
     angle,
     dim
 };
@@ -90,6 +89,7 @@ vFloat CalcConv(const std::vector<vFloat>& x, vFloat avgx, const std::vector<vFl
 template <class paraForm>
 class BayesClassifier{
 protected:
+    std::string outputPhotoName;
     float T;
     size_t featureNum;
     std::vector<paraForm> para;
@@ -100,6 +100,7 @@ public:
     virtual Classes Predict(const vFloat& x) = 0;
     virtual void Train(const std::vector<Sample>& samples,const float* classProbs) = 0;
     void setFeatureNum(size_t num){featureNum = num;}
+    const std::string& printPhoto() const{return outputPhotoName;}
 };
 struct BasicParaList{
     float w;
@@ -109,7 +110,7 @@ class NaiveBayesClassifier : public BayesClassifier<BasicParaList>{
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x);
 public:
-    NaiveBayesClassifier(){};
+    NaiveBayesClassifier(){outputPhotoName = "naiveBayes.png";};
     ~NaiveBayesClassifier(){}
     Classes Predict(const vFloat& x);
     void Train(const std::vector<Sample>& samples,const float* classProbs);
