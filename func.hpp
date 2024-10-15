@@ -85,7 +85,7 @@ public:
     Classes getLabel() const{return label;}
     const vFloat& getFeatures() const{return features;}
 };
-vFloat CalcConv(const std::vector<vFloat>& x, vFloat avgx, const std::vector<vFloat>& y, vFloat avgy);
+double CalcConv(const std::vector<double>& x, const std::vector<double>& y);
 template <class paraForm>
 class BayesClassifier{
 protected:
@@ -115,19 +115,19 @@ public:
     Classes Predict(const vFloat& x);
     void Train(const std::vector<Sample>& samples,const float* classProbs);
 };
-/*
 class NonNaiveBayesClassifier : public NaiveBayesClassifier{
+    float ** convMat;
+    float ** invMat;
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x);
+    void CalcConvMat();
     static constexpr float lambda = 0.1f;//regularization parameter
-    vFloat** convMat;
-    vFloat** invConvMat;
 public:
-    NonNaiveBayesClassifier(){convMat = nullptr; invConvMat = nullptr;}
-    ~NonNaiveBayesClassifier(){delete[] convMat; delete[] invConvMat;}
+    NonNaiveBayesClassifier(){convMat = nullptr;invMat = nullptr;outputPhotoName = "nonNaiveBayes.png";}
+    ~NonNaiveBayesClassifier();
     Classes Predict(const vFloat& x);
-    void Train(const StaticPara* densityParas,const float* classProbs);
+    void Train(const std::vector<Sample>& samples,const float* classProbs);
 };
-*/
+
 }
 #endif
