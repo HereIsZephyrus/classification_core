@@ -309,10 +309,6 @@ double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,c
     return res;
 }
 void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket){
-    //const unsigned int classNum = Classes::counter;
-    convMat = new float*[featureNum];
-    for (size_t i = 0; i < featureNum; i++)
-        convMat[i] = new float[featureNum];
     for (size_t i = 0; i < featureNum; i++){
         convMat[i][i] = 1.0f;
         for (size_t j = i+1; j < featureNum; j++){
@@ -345,9 +341,6 @@ void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const s
                 augmented[k][j] -=  factor * augmented[i][j];
         }
     }
-    invMat = new float*[featureNum];
-    for (size_t i = 0; i < featureNum; i++)
-        invMat[i] = new float[featureNum];
     for (size_t i = 0; i < featureNum; i++)
         for (size_t j = 0; j < featureNum; j++)
             invMat[i][j] = augmented[i][j + featureNum];
@@ -361,17 +354,23 @@ void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const s
 void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     featureNum = samples[0].getFeatures().size(); //select all
     para.clear();
-    para.reserve(Classes::counter);
+    para.resize(Classes::counter);
     unsigned int classNum = Classes::counter;
     std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
     for (int i = 0; i < classNum; i++){
         classifiedFeaturesAvg[i].assign(featureNum,0.0);
         classifiedFeaturesVar[i].assign(featureNum,0.0);
+        para[i].convMat = new float*[featureNum];
+        for (size_t j = 0; j < featureNum; j++)
+            para[i].convMat[j] = new float[featureNum];
+        para[i].invMat = new float*[featureNum];
+        for (size_t j = 0; j < featureNum; j++)
+            para[i].invMat[j] = new float[featureNum];
     }
     std::vector<size_t> classRecordNum(classNum,0);
     std::vector<std::vector<vFloat>> sampleBucket(classNum);
     for (unsigned int i = 0; i < classNum; i++)
-        sampleBucket[i].reserve(featureNum);
+        sampleBucket[i].resize(featureNum);
     for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
         unsigned int label = static_cast<unsigned int>(it->getLabel());
         const vFloat& sampleFeature = it->getFeatures();
@@ -395,6 +394,10 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
     for (unsigned int i = 0; i < classNum; i++)
         for (unsigned int j = 0; j < featureNum; j++)
             classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
+    for (unsigned int i = 0; i < classNum; i++){
+        para[i].w = classProbs[i];
+        para[i].mu = classifiedFeaturesAvg[i];
+    }
     return;
 };
 void NonNaiveBayesClassifier::LUdecomposition(float** matrix, float** L, float** U){

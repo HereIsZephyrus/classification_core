@@ -137,7 +137,7 @@ protected:
     void CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket);
     void LUdecomposition(float** matrix, float** L, float** U);
     double determinant(float** matrix);
-    static constexpr float lambda = 0.1f;//regularization parameter
+    static constexpr float lambda = 0.02f;//regularization parameter
 public:
     NonNaiveBayesClassifier(){outputPhotoName = "nonNaiveBayes.png";}
     ~NonNaiveBayesClassifier();

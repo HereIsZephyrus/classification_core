@@ -42,21 +42,19 @@ int BayersMethod(const cv::Mat& correctImage){
     std::vector<Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
-    NaiveBayesClassifier* basicClassifiers = new NaiveBayesClassifier();
-    //basicClassifiers->Train(dataset,classProbs);
-    NonNaiveBayesClassifier* nonNaiveClassifiers = new NonNaiveBayesClassifier();
-    nonNaiveClassifiers->Train(dataset,classProbs);
+    //NaiveBayesClassifier* classifier = new NaiveBayesClassifier();
+    NonNaiveBayesClassifier* classifier = new NonNaiveBayesClassifier();
+    classifier->Train(dataset,classProbs);
     delete[] classProbs;
     ClassMat patchClasses,pixelClasses;
-    //BayesClassify(correctImage,basicClassifiers,patchClasses);
-    BayesClassify(correctImage,nonNaiveClassifiers,patchClasses);
+    BayesClassify(correctImage,classifier,patchClasses);
     cv::Mat classified;
     DownSampling(patchClasses,pixelClasses);
     GenerateClassifiedImage(correctImage,classified,pixelClasses);
     cv::imshow("classified Image", classified);
     cv::waitKey(0);
     cv::destroyWindow("classified Image");
-    cv::imwrite(basicClassifiers->printPhoto(), classified);
+    cv::imwrite(classifier->printPhoto(), classified);
     return 0;
 }
 int FisherMethod(){
