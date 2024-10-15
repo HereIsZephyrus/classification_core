@@ -225,10 +225,10 @@ double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,cons
     double res = para[static_cast<Classes>(classID)].w;
     for (unsigned int d = 0; d < Demisions::dim; d++){
         float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
-        float sigma = para[static_cast<Classes>(classID)].sigma[d];
-        double vars = 1e100 * std::exp(static_cast<double>(- pd * pd / (2 * sigma * sigma)));
-        double normalize = 1.0f / (sqrt(2 * CV_PI) * para[static_cast<Classes>(classID)].sigma[d]);
-        res *= normalize * vars;
+        float vars = para[static_cast<Classes>(classID)].sigma[d] * para[static_cast<Classes>(classID)].sigma[d];
+        double exponent = 1e100 * std::exp(static_cast<double>(- pd * pd / (2 * vars)));
+        double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
+        res *= normalize * exponent;
     }
     return res;
 }

@@ -158,7 +158,7 @@ bool vignetteCorrection(const cv::Mat& inputImage, cv::Mat& convexImage) {
     for (int y = 0; y < rows; ++y) {
         for (int x = 0; x < cols; ++x) {
             float dist = std::sqrt((x - center.x) * (x - center.x) + (y - center.y) * (y - center.y));
-            weight.at<float>(y, x) = 0.6f + (dist / maxDist)/2.5f;
+            weight.at<float>(y, x) = 0.7f + (dist / maxDist)/3.0f;
         }
     }
     for (int c = 0; c < 3; ++c)
