@@ -485,8 +485,8 @@ bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset){
         for (unsigned int i = 0; i < classParas[classID].getRecordsNum(); i++){
             vFloat data;
             for (unsigned int d = 0; d < Demisions::dim; d++){
-                data.push_back(avg[d][i]);
-                data.push_back(var[d][i]);
+                data.push_back(avg[i][d]);
+                data.push_back(var[i][d]);
             }
             Sample sample(static_cast<Classes>(classID),data);
             dataset.push_back(sample);

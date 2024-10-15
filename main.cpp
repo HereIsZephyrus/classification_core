@@ -42,6 +42,7 @@ int BayersMethod(const cv::Mat& correctImage){
     std::vector<Sample> dataset;
     StudySamples(classParas,dataset);
     NaiveBayesClassifier* basicClassifiers = new NaiveBayesClassifier();
+    basicClassifiers->setFeatureNum(dataset[0].getFeatures().size());
     basicClassifiers->Train(dataset,classProbs);
     ClassMat patchClasses,pixelClasses;
     BayesClassify(correctImage,basicClassifiers,patchClasses);

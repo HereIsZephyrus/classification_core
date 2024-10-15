@@ -204,6 +204,7 @@ float Sample::calcMean(const vFloat& data){
 }
 double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     double res = para[static_cast<Classes>(classID)].w;
+    std::cout<<featureNum<<std::endl;
     for (unsigned int d = 0; d < featureNum; d++){
         float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
         float vars = para[static_cast<Classes>(classID)].sigma[d] * para[static_cast<Classes>(classID)].sigma[d];
@@ -240,11 +241,6 @@ void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float*
         const vFloat& sampleFeature = it->getFeatures();
         for (unsigned int i = 0; i < featureNum; i++)
             classifiedFeaturesAvg[label][i] += sampleFeature[i];
-        if (label == 1){
-            for (unsigned int i = 0; i < featureNum; i++)
-                std::cout<<sampleFeature[i]<<" ";
-            std::cout<<std::endl;
-        }
         classRecordNum[label]++;
     }
     for (unsigned int i = 0; i < classNum; i++)

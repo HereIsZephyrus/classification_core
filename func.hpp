@@ -99,6 +99,7 @@ public:
     ~BayesClassifier(){}
     virtual Classes Predict(const vFloat& x) = 0;
     virtual void Train(const std::vector<Sample>& samples,const float* classProbs) = 0;
+    void setFeatureNum(size_t num){featureNum = num;}
 };
 struct BasicParaList{
     float w;
