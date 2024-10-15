@@ -19,7 +19,7 @@ bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const 
 typedef std::vector<std::vector<Classes>> ClassMat;
 namespace bayes{
 bool CalcClassProb(float* prob);
-bool StudySamples(StaticPara* classParas);
+bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset);
 bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses);
 bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses);
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const ClassMat& pixelClasses);

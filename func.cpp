@@ -4,7 +4,7 @@
 
 std::string classFolderNames[Classes::counter] = 
 {"desk","apple","blackplum","dongzao","grape","peach","yellowpeach"};
-std::map<Classes,cv::Scalar> classifyColor = {
+std::unordered_map<Classes,cv::Scalar> classifyColor = {
     {Classes::Desk,cv::Scalar(0,0,0)}, // black
     {Classes::Apple,cv::Scalar(255,0,0)}, // red
     {Classes::Blackplum,cv::Scalar(255,0,255)}, // magenta
@@ -125,8 +125,8 @@ bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels
     std::vector<cv::Mat> BGRchannels;
     cv::split(image, BGRchannels);
     channels.clear();
-    //channels = BGRchannels;
-    channels.push_back(BGRchannels[2]);
+    channels = BGRchannels;
+    //channels.push_back(BGRchannels[2]);
     cv::Mat grayImage;
     cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
     channels.push_back(grayImage);
@@ -138,10 +138,14 @@ bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels
     channels.push_back(angle);
     return true;
 }
-bool CalcChannelMeans(const std::vector<cv::Mat> & channels, vFloat & means){
-    means.clear();
-    for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++)
-        means.push_back(cv::mean(*it)[0]);
+bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data){
+    data.clear();
+    for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
+        cv::Scalar mean, stddev;
+        cv::meanStdDev(*it, mean, stddev);
+        data.push_back(cv::mean(*it)[0]);
+        data.push_back(stddev[0] * stddev[0]);
+    }
     return true;
 }
 };//namespace tcb
@@ -161,8 +165,8 @@ vFloat CalcConv(const std::vector<vFloat>& x, vFloat avgx, const std::vector<vFl
 void StaticPara::InitClassType(Classes ID){
     recordNum = 0;
     classID = ID;
-    mu.clear();
-    sigma.clear();
+    avg.clear();
+    var.clear();
     return;
 }
 void StaticPara::Sampling(const std::string& entryPath){
@@ -177,56 +181,33 @@ void StaticPara::Sampling(const std::string& entryPath){
     for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
-            vFloat means, sigmas;
+            vFloat means, vars;
             for (unsigned int i = 0; i < Demisions::dim; i++){
                 cv::Mat viewingPatch = channels[i](window);
                 cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
                 means.push_back(mean[0]);
-                sigmas.push_back(stddev[0]);
+                vars.push_back(stddev[0] * stddev[0]);
             }
-            mu.push_back(means);
-            sigma.push_back(sigmas);
+            avg.push_back(means);
+            var.push_back(vars);
             recordNum++;
         }
     }
     return;
 }
-vFloat StaticPara::CombineMu(int begin,int end) const{
-    vFloat res;
-    for (unsigned int d = 0; d < Demisions::dim; d++){
-        double tempRes = 0;
-        for (int i = begin; i < end; i++)
-            tempRes += mu[i][d];
-        tempRes /= (end - begin);
-        res.push_back(static_cast<float>(tempRes));
-    }
-    return res;
-}
-vFloat StaticPara::CombineSigma(int begin,int end) const{
-    vFloat res;
-    for (unsigned int d = 0; d < Demisions::dim; d++){
-        double tempRes = 0;
-        for (int i = begin; i < end; i++)
-            tempRes += sigma[i][d];
-        tempRes /= (end - begin);
-        res.push_back(static_cast<float>(tempRes));
-    }
-    return res;
-}
-void StaticPara::printInfo(){
-    std::cout<<classFolderNames[classID]<<" sampled "<<recordNum<<std::endl;
-    vFloat outputMu = CombineMu(0,recordNum), outputSigma = CombineSigma(0,recordNum);
-    for (unsigned int d = 0; d < Demisions::dim; d++)
-        std::cout<<"dim"<<d+1<<": mu = "<<outputMu[d]<<", sigma = "<<outputSigma[d]<<std::endl;
-    return;
+float Sample::calcMean(const vFloat& data){
+    double sum = 0.0f;
+    for (vFloat::const_iterator it = data.begin(); it != data.end(); it++)
+        sum += *it;
+    return static_cast<float>(sum / data.size());
 }
 double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     double res = para[static_cast<Classes>(classID)].w;
-    for (unsigned int d = 0; d < Demisions::dim; d++){
+    for (unsigned int d = 0; d < featureNum; d++){
         float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
         float vars = para[static_cast<Classes>(classID)].sigma[d] * para[static_cast<Classes>(classID)].sigma[d];
-        double exponent = 1e100 * std::exp(static_cast<double>(- pd * pd / (2 * vars)));
+        double exponent = std::exp(static_cast<double>(- pd * pd / (2 * vars)));
         double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
         res *= normalize * exponent;
     }
@@ -244,16 +225,62 @@ Classes NaiveBayesClassifier::Predict(const vFloat& x){
     }
     return bestClass;
 }
-void NaiveBayesClassifier::Train(const StaticPara* densityParas,const float* classProbs){
-    const unsigned int classNum = Classes::counter;
-    for (unsigned int classID = 0; classID < classNum; classID++){
-        para[static_cast<Classes>(classID)].mu = densityParas[classID].CombineMu(0,densityParas[classID].getRecordsNum());
-        para[static_cast<Classes>(classID)].sigma = densityParas[classID].CombineSigma(0,densityParas[classID].getRecordsNum());
-        para[static_cast<Classes>(classID)].w = classProbs[classID];
+void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
+    size_t featureNum = samples[0].getFeatures().size(); //select all
+    para.clear();
+    unsigned int classNum = Classes::counter;
+    std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
+    for (int i = 0; i < classNum; i++){
+        classifiedFeaturesAvg[i].assign(featureNum,0.0);
+        classifiedFeaturesVar[i].assign(featureNum,0.0);
+    }
+    std::vector<size_t> classRecordNum(classNum,0);
+    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        unsigned int label = static_cast<unsigned int>(it->getLabel());
+        const vFloat& sampleFeature = it->getFeatures();
+        for (unsigned int i = 0; i < featureNum; i++)
+            classifiedFeaturesAvg[label][i] += sampleFeature[i];
+        if (label == 1){
+            for (unsigned int i = 0; i < featureNum; i++)
+                std::cout<<sampleFeature[i]<<" ";
+            std::cout<<std::endl;
+        }
+        classRecordNum[label]++;
+    }
+    for (unsigned int i = 0; i < classNum; i++)
+        for (unsigned int j = 0; j < featureNum; j++)
+            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
+    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        unsigned int label = static_cast<unsigned int>(it->getLabel());
+        const vFloat& sampleFeature = it->getFeatures();
+        for (unsigned int i = 0; i < featureNum; i++)
+            classifiedFeaturesVar[label][i] += (sampleFeature[i] - classifiedFeaturesAvg[label][i]) * (sampleFeature[i] - classifiedFeaturesAvg[label][i]);
+    }
+    for (unsigned int i = 0; i < classNum; i++)
+        for (unsigned int j = 0; j < featureNum; j++)
+            classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
+    for (unsigned int i = 0; i < classNum; i++){
+        BasicParaList temp;
+        temp.w = classProbs[i];
+        temp.mu = classifiedFeaturesAvg[i];
+        temp.sigma = classifiedFeaturesVar[i];
+        para.push_back(temp);
+        {
+            std::cout<<"class "<<i<<" counts"<<classRecordNum[i]<<std::endl;
+            std::cout<<"w: "<<temp.w<<std::endl;
+            std::cout<<"mu: ";
+            for (unsigned int j = 0; j < featureNum; j++)
+                std::cout<<temp.mu[j]<<" ";
+            std::cout<<std::endl;
+            std::cout<<"sigma: ";
+            for (unsigned int j = 0; j < featureNum; j++)
+                std::cout<<temp.sigma[j]<<" ";
+            std::cout<<std::endl;
+        }
     }
     return;
 };
-
+/*
 double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     return 0.0f;
 }
@@ -269,7 +296,7 @@ Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
     }
     return bestClass;
 }
-void NonNaiveBayesClassifier::Train(const StaticPara* densityParas,const float* classProbs){
+void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     const unsigned int classNum = Classes::counter;
     convMat = new vFloat*[classNum];
     invConvMat = new vFloat*[classNum];
@@ -293,4 +320,5 @@ void NonNaiveBayesClassifier::Train(const StaticPara* densityParas,const float* 
 
     return;
 };
+*/
 };//namespace bayes

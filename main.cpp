@@ -39,9 +39,10 @@ int BayersMethod(const cv::Mat& correctImage){
     StaticPara* classParas = new StaticPara[classesNum];
     for (unsigned int classID = 0; classID < classesNum; classID++)
         classParas[classID].InitClassType(static_cast<Classes>(classID));
-    StudySamples(classParas);
+    std::vector<Sample> dataset;
+    StudySamples(classParas,dataset);
     NaiveBayesClassifier* basicClassifiers = new NaiveBayesClassifier();
-    basicClassifiers->Train(classParas,classProbs);
+    basicClassifiers->Train(dataset,classProbs);
     ClassMat patchClasses,pixelClasses;
     BayesClassify(correctImage,basicClassifiers,patchClasses);
     cv::Mat classified;

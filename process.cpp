@@ -466,7 +466,7 @@ bool CalcClassProb(float* prob){
     delete[] countings;
     return true;
 }
-bool StudySamples(StaticPara* classParas){
+bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset){
     namespace fs = std::filesystem;
     for (unsigned int suitID = 0; suitID < 3; suitID++){// has sampled 3 suit of samples
         std::string suitFolderPath = "../sampling/suit" + std::to_string(suitID + 1) + "/";
@@ -479,8 +479,19 @@ bool StudySamples(StaticPara* classParas){
             }
         }
     }
-    for (unsigned int classID = 0; classID < Classes::counter; classID++)
-        classParas[classID].printInfo();
+    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+        const std::vector<vFloat>& avg = classParas[classID].getAvg();
+        const std::vector<vFloat>& var = classParas[classID].getVar();
+        for (unsigned int i = 0; i < classParas[classID].getRecordsNum(); i++){
+            vFloat data;
+            for (unsigned int d = 0; d < Demisions::dim; d++){
+                data.push_back(avg[d][i]);
+                data.push_back(var[d][i]);
+            }
+            Sample sample(static_cast<Classes>(classID),data);
+            dataset.push_back(sample);
+        }
+    }
     return true;
 }
 bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
@@ -493,10 +504,10 @@ bool BayesClassify(const cv::Mat& rawimage,NaiveBayesClassifier* classifer,std::
             cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
             cv::Mat sample = rawimage(window);
             std::vector<cv::Mat> channels;
-            vFloat means;
+            vFloat data;
             tcb::GenerateFeatureChannels(sample, channels);
-            tcb::CalcChannelMeans(channels, means);
-            rowClasses.push_back(classifer->Predict(means));
+            tcb::CalcChannelMeanStds(channels, data);
+            rowClasses.push_back(classifer->Predict(data));
         }
         patchClasses.push_back(rowClasses);
     }
