@@ -98,7 +98,7 @@ public:
     BayesClassifier(){}
     ~BayesClassifier(){}
     Classes Predict(const vFloat& x){
-        double maxProb = -1.0f;
+        double maxProb = -10e9;
         Classes bestClass = Classes::Unknown;
         for (unsigned int classID = 0; classID < Classes::counter; classID++){
             double prob = CalculateClassProbability(classID,x);
@@ -137,7 +137,7 @@ protected:
     void CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket);
     void LUdecomposition(float** matrix, float** L, float** U);
     double determinant(float** matrix);
-    static constexpr float lambda = 0.02f;//regularization parameter
+    static constexpr float lambda = 0.1f;//regularization parameter
 public:
     NonNaiveBayesClassifier(){outputPhotoName = "nonNaiveBayes.png";}
     ~NonNaiveBayesClassifier();

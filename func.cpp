@@ -159,9 +159,10 @@ double CalcConv(const vFloat& x, const vFloat& y){
     xAvg /= n;    yAvg /= n;
     for (size_t i = 0; i < n; i++)
         res += (x[i] - xAvg) * (y[i] - yAvg);
-    res /= n;
+    res /= (n-1);
     return res;
 }
+
 void StaticPara::InitClassType(Classes ID){
     recordNum = 0;
     classID = ID;
@@ -297,8 +298,8 @@ double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,c
     for (unsigned int d = 0; d < featureNum; d++)
         pd[d] = x[d] - para[static_cast<Classes>(classID)].mu[d];
     vFloat sumX(featureNum, 0.0);
-    for (size_t i = 0; i < featureNum; ++i)
-        for (size_t j = 0; j < featureNum; ++j)
+    for (size_t i = 0; i < featureNum; i++)
+        for (size_t j = 0; j < featureNum; j++)
             sumX[i] += x[j] * para[classID].invMat[i][j];
     for (unsigned int d = 0; d < featureNum; d++){
         float sum = 0.0f;
@@ -310,7 +311,8 @@ double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,c
 }
 void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket){
     for (size_t i = 0; i < featureNum; i++){
-        convMat[i][i] = 1.0f;
+        convMat[i][i] = CalcConv(bucket[i],bucket[i]) + lambda;
+        //std::cout<<"convMat["<<i<<"]["<<i<<"]:"<<convMat[i][i]<<std::endl;
         for (size_t j = i+1; j < featureNum; j++){
             double conv = CalcConv(bucket[i],bucket[j]);
             convMat[i][j] = conv * (1.0f - lambda);
@@ -323,7 +325,7 @@ void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const s
     for (size_t i = 0; i < featureNum; i++) {
         for (size_t j = 0; j < featureNum; j++) 
             augmented[i][j] = convMat[i][j];
-        for (size_t j = featureNum; j < 2 * featureNum; ++j)
+        for (size_t j = featureNum; j < 2 * featureNum; j++)
             if (i == (j - featureNum))
                 augmented[i][j] = 1.0;
             else
@@ -337,7 +339,7 @@ void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const s
             if (k == i) 
                 continue;
             double factor = augmented[k][i];
-            for (size_t j = 0; j < 2 * featureNum; ++j) 
+            for (size_t j = 0; j < 2 * featureNum; j++) 
                 augmented[k][j] -=  factor * augmented[i][j];
         }
     }
@@ -353,13 +355,13 @@ void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const s
 }
 void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     featureNum = samples[0].getFeatures().size(); //select all
+    std::cout<<featureNum<<std::endl;
     para.clear();
     para.resize(Classes::counter);
     unsigned int classNum = Classes::counter;
-    std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
+    std::vector<double> classifiedFeaturesAvg[classNum];
     for (int i = 0; i < classNum; i++){
         classifiedFeaturesAvg[i].assign(featureNum,0.0);
-        classifiedFeaturesVar[i].assign(featureNum,0.0);
         para[i].convMat = new float*[featureNum];
         for (size_t j = 0; j < featureNum; j++)
             para[i].convMat[j] = new float[featureNum];
@@ -384,16 +386,21 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
         for (unsigned int j = 0; j < featureNum; j++)
             classifiedFeaturesAvg[i][j] /= classRecordNum[i];
         CalcConvMat(para[i].convMat,para[i].invMat,sampleBucket[i]);
+        /*
+        std::cout<<"class "<<classFolderNames[i]<<"'s conv Mat:"<<std::endl;
+        for (int w = 0; w < featureNum; w++){
+            for (int h = 0; h < featureNum; h++)
+                std::cout<<para[i].convMat[w][h]<<" ";
+            std::cout<<std::endl;
+        }
+        std::cout<<"class "<<classFolderNames[i]<<"'s invconv Mat:"<<std::endl;
+        for (int w = 0; w < featureNum; w++){
+            for (int h = 0; h < featureNum; h++)
+                std::cout<<para[i].invMat[w][h]<<" ";
+            std::cout<<std::endl;
+        }
+        */
     }
-    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < featureNum; i++)
-            classifiedFeaturesVar[label][i] += (sampleFeature[i] - classifiedFeaturesAvg[label][i]) * (sampleFeature[i] - classifiedFeaturesAvg[label][i]);
-    }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < featureNum; j++)
-            classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
     for (unsigned int i = 0; i < classNum; i++){
         para[i].w = classProbs[i];
         para[i].mu = classifiedFeaturesAvg[i];
@@ -401,23 +408,39 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
     return;
 };
 void NonNaiveBayesClassifier::LUdecomposition(float** matrix, float** L, float** U){
-    for (int i = 0; i < featureNum; ++i) { // init LU
-        for (int j = 0; j < featureNum; ++j) {
+    for (int i = 0; i < featureNum; i++) { // init LU
+        for (int j = 0; j < featureNum; j++) {
             L[i][j] = 0;
             U[i][j] = matrix[i][j];
         }
         L[i][i] = 1;
     }
-    for (int i = 0; i < featureNum; ++i) { // LU decomposition
-        for (int j = i; j < featureNum; ++j) 
+    /*
+    std::cout<<"raw"<<std::endl;
+    for (int i = 0; i < featureNum; i++) {
+        for (int j = 0; j < featureNum; j++) 
+            std::cout<<U[i][j]<<" ";
+        std::cout<<std::endl;
+    }
+    */
+    for (int i = 0; i < featureNum; i++) { // LU decomposition
+        for (int j = i; j < featureNum; j++) 
             for (int k = 0; k < i; ++k) 
                 U[i][j] -= L[i][k] * U[k][j];
-        for (int j = i + 1; j < featureNum; ++j) {
+        for (int j = i + 1; j < featureNum; j++) {
             for (int k = 0; k < i; ++k)
                 L[j][i] -= L[j][k] * U[k][i];
             L[j][i] = U[j][i] / U[i][i];
         }
     }
+    /*
+    std::cout<<"U"<<std::endl;
+    for (int i = 0; i < featureNum; i++) {
+        for (int j = 0; j < featureNum; j++) 
+            std::cout<<U[i][j]<<" ";
+        std::cout<<std::endl;
+    }
+    */
 }
 double NonNaiveBayesClassifier::determinant(float** matrix) {
     float** L = new float*[featureNum];
@@ -428,7 +451,7 @@ double NonNaiveBayesClassifier::determinant(float** matrix) {
     }
     LUdecomposition(matrix, L, U);
     double det = 1.0;
-    for (int i = 0; i < featureNum; ++i)
+    for (int i = 0; i < featureNum; i++)
         det *= U[i][i];
     for (size_t i = 0; i < featureNum; i++){
         delete[] L[i];
