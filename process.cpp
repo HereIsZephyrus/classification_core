@@ -495,28 +495,6 @@ bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset){
     }
     return true;
 }
-/*
-template <class paraForm>
-bool BayesClassify(const cv::Mat& rawimage,BayesClassifier<paraForm>* classifer,std::vector<std::vector<Classes>>& patchClasses){
-    int rows = rawimage.rows, cols = rawimage.cols;
-    for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
-        std::vector<Classes> rowClasses;
-        bool lastRowCheck = (r >= (rows - classifierKernelSize));
-        for (int c = classifierKernelSize/2; c <= cols - classifierKernelSize; c+=classifierKernelSize/2){
-            bool lastColCheck = (c >= (cols - classifierKernelSize));
-            cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
-            cv::Mat sample = rawimage(window);
-            std::vector<cv::Mat> channels;
-            vFloat data;
-            tcb::GenerateFeatureChannels(sample, channels);
-            tcb::CalcChannelMeanStds(channels, data);
-            rowClasses.push_back(classifer->Predict(data));
-        }
-        patchClasses.push_back(rowClasses);
-    }
-    return true;
-}
-*/
 bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses){
     ClassMat::const_iterator row = patchClasses.begin();
     { //tackle the first line

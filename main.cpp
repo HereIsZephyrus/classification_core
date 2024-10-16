@@ -57,9 +57,30 @@ int BayersMethod(const cv::Mat& correctImage){
     cv::imwrite(classifier->printPhoto(), classified);
     return 0;
 }
-int FisherMethod(){
-   return 0; 
+int FisherMethod(const cv::Mat& correctImage){
+    using namespace bayes;
+    using namespace linear;
+    unsigned int classesNum = Classes::counter;
+    StaticPara* classParas = new StaticPara[classesNum];
+    for (unsigned int classID = 0; classID < classesNum; classID++)
+        classParas[classID].InitClassType(static_cast<Classes>(classID));
+    std::vector<Sample> dataset;
+    StudySamples(classParas,dataset);
+    delete[] classParas;
+    FisherClassifier* classifier = new FisherClassifier();
+    classifier->Train(dataset);
+    ClassMat patchClasses,pixelClasses;
+    LinearClassify(correctImage,classifier,patchClasses);
+    cv::Mat classified;
+    DownSampling(patchClasses,pixelClasses);
+    GenerateClassifiedImage(correctImage,classified,pixelClasses);
+    cv::imshow("classified Image", classified);
+    cv::waitKey(0);
+    cv::destroyWindow("classified Image");
+    cv::imwrite(classifier->printPhoto(), classified);
+    return 0; 
 }
+
 int main() {
     std::cout << "Which method do you want to use?" << std::endl;
     std::cout << "1. Histo Method" << std::endl;
@@ -68,11 +89,11 @@ int main() {
     int type = 2;
     //std::cin>>type;
     cv::Mat rawImage = cv::imread("../images/spot.jpeg");
+    cv::Mat anotherImage = cv::imread("../images/dim.jpeg");
     if (rawImage.empty()) {
         std::cerr << "Image not found!" << std::endl;
         return -1;
     }
-    cv::Mat processed;
     cv::imshow("raw Image", rawImage);
     cv::waitKey(0);
     cv::destroyWindow("raw Image");
@@ -81,12 +102,19 @@ int main() {
             HistMethod(rawImage);
             break;
         case 2:{
+            cv::Mat processed;
             PreProcess(rawImage,processed);
             BayersMethod(processed);
+            //BayersMethod(anotherImage);
             break;
         }
-        case 3:
+        case 3:{
+            cv::Mat processed;
+            PreProcess(rawImage,processed);
+            FisherMethod(processed);
+            //FisherMethod(anotherImage);
             break;
+        }
         default:
             std::cout << "Wrong input" << std::endl;
             break;

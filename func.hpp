@@ -44,7 +44,7 @@ enum Demisions : unsigned int{
 constexpr int classifierKernelSize = 9;
 typedef std::vector<Classes> vClasses;
 typedef std::vector<float> vFloat;
-
+typedef float** fMat;
 namespace tcb{
 bool TopHat(cv::Mat &image,int xSize,int ySize);
 bool BottomHat(cv::Mat &image,int xSize,int ySize);
@@ -58,8 +58,9 @@ bool Dilate(cv::Mat &image,int kernelSize);
 bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry);
 bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels);
 bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data);
+bool CalcInvMat(float** const convMat,float ** invMat,const int num);
+bool CalcEigen(const std::vector<vFloat>& matrix, vFloat& eigVal, std::vector<vFloat>& eigVec, const int num);
 };
-namespace bayes{
 class StaticPara{
     std::vector<vFloat> avg,var;
     Classes classID;
@@ -85,13 +86,19 @@ public:
     Classes getLabel() const{return label;}
     const vFloat& getFeatures() const{return features;}
 };
+class Classifier{
+protected:
+    size_t featureNum;
+    std::string outputPhotoName;
+public:
+    virtual Classes Predict(const vFloat& x) = 0;
+    const std::string& printPhoto() const{return outputPhotoName;}
+};
+namespace bayes{
 double CalcConv(const vFloat& x, const vFloat& y);
 template <class paraForm>
-class BayesClassifier{
+class BayesClassifier : public Classifier{
 protected:
-    std::string outputPhotoName;
-    float T;
-    size_t featureNum;
     std::vector<paraForm> para;
     virtual double CalculateClassProbability(unsigned int classID,const vFloat& x) = 0;
 public:
@@ -110,7 +117,6 @@ public:
         return bestClass;
     }
     virtual void Train(const std::vector<Sample>& samples,const float* classProbs) = 0;
-    const std::string& printPhoto() const{return outputPhotoName;}
 };
 struct BasicParaList{
     float w;
@@ -119,8 +125,8 @@ struct BasicParaList{
 struct convParaList{
     float w;
     std::vector<double> mu;
-    float** convMat;
-    float** invMat;
+    fMat convMat;
+    fMat invMat;
 };
 class NaiveBayesClassifier : public BayesClassifier<BasicParaList>{
 protected:
@@ -128,22 +134,31 @@ protected:
 public:
     NaiveBayesClassifier(){outputPhotoName = "naiveBayes.png";};
     ~NaiveBayesClassifier(){}
-    //Classes Predict(const vFloat& x);
     void Train(const std::vector<Sample>& samples,const float* classProbs);
 };
 class NonNaiveBayesClassifier : public BayesClassifier<convParaList>{
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x);
-    void CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket);
-    void LUdecomposition(float** matrix, float** L, float** U);
-    double determinant(float** matrix);
-    static constexpr float lambda = 0.1f;//regularization parameter
+    void CalcConvMat(fMat convMat,fMat invMat,const std::vector<vFloat>& bucket);
+    void LUdecomposition(fMat matrix, fMat L, fMat U);
+    double determinant(fMat matrix);
+    static constexpr float lambda = 0.0f;//regularization parameter
 public:
     NonNaiveBayesClassifier(){outputPhotoName = "nonNaiveBayes.png";}
     ~NonNaiveBayesClassifier();
-    //Classes Predict(const vFloat& x);
     void Train(const std::vector<Sample>& samples,const float* classProbs);
 };
-
 }
+namespace linear{
+class FisherClassifier : public Classifier{
+    fMat projMat;
+    void CalcSwSb(float** Sw,float** Sb,const std::vector<Sample>& samples);
+public:
+    FisherClassifier() {projMat = nullptr;outputPhotoName = "fisher.png";}
+    ~FisherClassifier();
+    void Train(const std::vector<Sample>& samples);
+    Classes Predict(const vFloat& x);
+};
+bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses);
+};
 #endif

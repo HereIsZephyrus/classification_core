@@ -1,5 +1,6 @@
 #include <cmath>
 #include <algorithm>
+#include <Eigen/Dense>
 #include "func.hpp"
 
 std::string classFolderNames[Classes::counter] = 
@@ -146,22 +147,103 @@ bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data){
     }
     return true;
 }
-};//namespace tcb
-namespace bayes {
-double CalcConv(const vFloat& x, const vFloat& y){
-    double res = 0;
-    const size_t n = x.size();
-    double xAvg = 0.0f, yAvg = 0.0f;
-    for (size_t i = 0; i < n; i++){
-        xAvg += x[i];
-        yAvg += y[i];
+bool CalcInvMat(float** const convMat,float ** invMat,int num){
+    fMat augmented = new float*[num];
+    for (size_t i = 0; i < num; i++)
+        augmented[i] = new float[num*2];
+    for (size_t i = 0; i < num; i++) {
+        for (size_t j = 0; j < num; j++) 
+            augmented[i][j] = convMat[i][j];
+        for (size_t j = num; j < 2 * num; j++)
+            if (i == (j - num))
+                augmented[i][j] = 1.0;
+            else
+                augmented[i][j] = 0.0;
     }
-    xAvg /= n;    yAvg /= n;
-    for (size_t i = 0; i < n; i++)
-        res += (x[i] - xAvg) * (y[i] - yAvg);
-    res /= (n-1);
-    return res;
+    for (size_t i = 0; i < num; i++) {
+        double pivot = augmented[i][i];
+        for (size_t j = 0; j < 2 * num; j++)
+            augmented[i][j] /= pivot;
+        for (size_t k = 0; k < num; ++k) {
+            if (k == i) 
+                continue;
+            double factor = augmented[k][i];
+            for (size_t j = 0; j < 2 * num; j++) 
+                augmented[k][j] -=  factor * augmented[i][j];
+        }
+    }
+    for (size_t i = 0; i < num; i++)
+        for (size_t j = 0; j < num; j++)
+            invMat[i][j] = augmented[i][j + num];
+    if (augmented != nullptr){
+        for(size_t i = 0;i < num;i++)
+            delete[] augmented[i];
+        delete[] augmented;
+    }
+    return true;
 }
+bool CalcEigen(const std::vector<vFloat>& matrix, vFloat& eigVal, std::vector<vFloat>& eigVec, const int num){
+    std::vector<vFloat> Q(num,vFloat(num,0.0f));
+    std::vector<vFloat> R(num,vFloat(num,0.0f));
+    std::vector<vFloat> A(num,vFloat(num,0.0f));
+    for (int i = 0; i < num; i++)
+        eigVec[i][i] = 1.0f;
+    A = matrix;
+    const int maxIter = 3;
+    const float tolerance = 1e-6;
+    for (int iter = 0; iter < maxIter; iter++){
+        //QR decomposition
+        for (int j = 0; j < num; j++) {
+            for (int i = 0; i < num; i++)
+                Q[i][j] = A[i][j];
+            for (int i = 0; i < j; ++i) {
+                float temp = 0;
+                for (size_t k = 0; k < num; ++k)
+                    temp += Q[k][j] * A[k][i];
+                R[i][j] = temp;
+                for (int k = 0; k < num; ++k)
+                    Q[k][j] -= R[i][j] * Q[k][i];
+            }
+            {
+                float temp = 0;
+                for (size_t i = 0; i < num; ++i)
+                    temp += Q[i][j] * Q[i][j];
+                R[j][j] = sqrt(temp);
+            }
+            for (int i = 0; i < num; ++i)
+                Q[i][j] /= R[j][j];
+        }
+
+        //update A by QR
+        //std::cout<<"iter "<<iter<<std::endl;
+        for (int i = 0; i < num; i++){
+            for (int j = 0; j < num; j++) {
+                A[i][j] = 0.0f;
+                for (int k = 0; k < num; k++)
+                    A[i][j] += R[k][j] * Q[i][k];
+                //std::cout<<A[i][j]<<' ';
+            }
+            //std::cout<<std::endl;
+        }
+        
+        //update eigVec by Q
+        std::vector<vFloat> temp(num,vFloat(num,0.0f));
+        for (int i = 0; i < num; i++)
+            for (int j = 0; j < num; j++)
+                for (int k = 0; k < num; k++){
+                    temp[i][j] += eigVec[i][k] * Q[k][j];
+                    //std::cout<<temp[i][j]<<"+="<<eigVec[i][k]<<'*'<<Q[k][j]<<' ';
+                }
+        eigVec = temp;
+        for (int i = 1; i < num; i++)
+            if (fabs(A[i][i - 1]) < tolerance)
+                break;
+    }
+    for (int i = 0; i < num; i++)
+        eigVal[i] = A[i][i];
+    return true;
+}
+};//namespace tcb
 
 void StaticPara::InitClassType(Classes ID){
     recordNum = 0;
@@ -203,6 +285,21 @@ float Sample::calcMean(const vFloat& data){
         sum += *it;
     return static_cast<float>(sum / data.size());
 }
+namespace bayes {
+double CalcConv(const vFloat& x, const vFloat& y){
+    double res = 0;
+    const size_t n = x.size();
+    double xAvg = 0.0f, yAvg = 0.0f;
+    for (size_t i = 0; i < n; i++){
+        xAvg += x[i];
+        yAvg += y[i];
+    }
+    xAvg /= n;    yAvg /= n;
+    for (size_t i = 0; i < n; i++)
+        res += (x[i] - xAvg) * (y[i] - yAvg);
+    res /= (n-1);
+    return res;
+}
 double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     double res = para[static_cast<Classes>(classID)].w;
     for (unsigned int d = 0; d < featureNum; d++){
@@ -214,32 +311,6 @@ double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,cons
     }
     return res;
 }
-/*
-Classes NaiveBayesClassifier::Predict(const vFloat& x){
-    double maxProb = -1.0f;
-    Classes bestClass = Classes::Unknown;
-    for (unsigned int classID = 0; classID < Classes::counter; classID++){
-        double prob = CalculateClassProbability(classID,x);
-        if (prob > maxProb) {
-            maxProb = prob;
-            bestClass = static_cast<Classes>(classID);
-        }
-    }
-    return bestClass;
-}
-Classes NonNaiveBayesClassifier::Predict(const vFloat& x){
-    double maxProb = -1.0f;
-    Classes bestClass = Classes::Unknown;
-    for (unsigned int classID = 0; classID < Classes::counter; classID++){
-        double prob = CalculateClassProbability(classID,x);
-        if (prob > maxProb) {
-            maxProb = prob;
-            bestClass = static_cast<Classes>(classID);
-        }
-    }
-    return bestClass;
-}
-*/
 void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     featureNum = samples[0].getFeatures().size(); //select all
     para.clear();
@@ -309,48 +380,16 @@ double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,c
     }
     return res;
 }
-void NonNaiveBayesClassifier::CalcConvMat(float** convMat,float** invMat,const std::vector<vFloat>& bucket){
+void NonNaiveBayesClassifier::CalcConvMat(fMat convMat,fMat invMat,const std::vector<vFloat>& bucket){
     for (size_t i = 0; i < featureNum; i++){
         convMat[i][i] = CalcConv(bucket[i],bucket[i]) + lambda;
-        //std::cout<<"convMat["<<i<<"]["<<i<<"]:"<<convMat[i][i]<<std::endl;
         for (size_t j = i+1; j < featureNum; j++){
             double conv = CalcConv(bucket[i],bucket[j]);
             convMat[i][j] = conv * (1.0f - lambda);
             convMat[j][i] = conv * (1.0f - lambda);
         }
     }
-    float** augmented = new float*[featureNum];
-    for (size_t i = 0; i < featureNum; i++)
-        augmented[i] = new float[featureNum*2];
-    for (size_t i = 0; i < featureNum; i++) {
-        for (size_t j = 0; j < featureNum; j++) 
-            augmented[i][j] = convMat[i][j];
-        for (size_t j = featureNum; j < 2 * featureNum; j++)
-            if (i == (j - featureNum))
-                augmented[i][j] = 1.0;
-            else
-                augmented[i][j] = 0.0;
-    }
-    for (size_t i = 0; i < featureNum; i++) {
-        double pivot = augmented[i][i];
-        for (size_t j = 0; j < 2 * featureNum; j++)
-            augmented[i][j] /= pivot;
-        for (size_t k = 0; k < featureNum; ++k) {
-            if (k == i) 
-                continue;
-            double factor = augmented[k][i];
-            for (size_t j = 0; j < 2 * featureNum; j++) 
-                augmented[k][j] -=  factor * augmented[i][j];
-        }
-    }
-    for (size_t i = 0; i < featureNum; i++)
-        for (size_t j = 0; j < featureNum; j++)
-            invMat[i][j] = augmented[i][j + featureNum];
-    if (augmented != nullptr){
-        for(size_t i = 0;i < featureNum;i++)
-            delete[] augmented[i];
-        delete[] augmented;
-    }
+    tcb::CalcInvMat(convMat,invMat,featureNum);
     return;
 }
 void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
@@ -386,20 +425,6 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
         for (unsigned int j = 0; j < featureNum; j++)
             classifiedFeaturesAvg[i][j] /= classRecordNum[i];
         CalcConvMat(para[i].convMat,para[i].invMat,sampleBucket[i]);
-        /*
-        std::cout<<"class "<<classFolderNames[i]<<"'s conv Mat:"<<std::endl;
-        for (int w = 0; w < featureNum; w++){
-            for (int h = 0; h < featureNum; h++)
-                std::cout<<para[i].convMat[w][h]<<" ";
-            std::cout<<std::endl;
-        }
-        std::cout<<"class "<<classFolderNames[i]<<"'s invconv Mat:"<<std::endl;
-        for (int w = 0; w < featureNum; w++){
-            for (int h = 0; h < featureNum; h++)
-                std::cout<<para[i].invMat[w][h]<<" ";
-            std::cout<<std::endl;
-        }
-        */
     }
     for (unsigned int i = 0; i < classNum; i++){
         para[i].w = classProbs[i];
@@ -407,7 +432,7 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
     }
     return;
 };
-void NonNaiveBayesClassifier::LUdecomposition(float** matrix, float** L, float** U){
+void NonNaiveBayesClassifier::LUdecomposition(fMat matrix, fMat L, fMat U){
     for (int i = 0; i < featureNum; i++) { // init LU
         for (int j = 0; j < featureNum; j++) {
             L[i][j] = 0;
@@ -415,14 +440,6 @@ void NonNaiveBayesClassifier::LUdecomposition(float** matrix, float** L, float**
         }
         L[i][i] = 1;
     }
-    /*
-    std::cout<<"raw"<<std::endl;
-    for (int i = 0; i < featureNum; i++) {
-        for (int j = 0; j < featureNum; j++) 
-            std::cout<<U[i][j]<<" ";
-        std::cout<<std::endl;
-    }
-    */
     for (int i = 0; i < featureNum; i++) { // LU decomposition
         for (int j = i; j < featureNum; j++) 
             for (int k = 0; k < i; ++k) 
@@ -433,21 +450,15 @@ void NonNaiveBayesClassifier::LUdecomposition(float** matrix, float** L, float**
             L[j][i] = U[j][i] / U[i][i];
         }
     }
-    /*
-    std::cout<<"U"<<std::endl;
-    for (int i = 0; i < featureNum; i++) {
-        for (int j = 0; j < featureNum; j++) 
-            std::cout<<U[i][j]<<" ";
-        std::cout<<std::endl;
-    }
-    */
 }
-double NonNaiveBayesClassifier::determinant(float** matrix) {
-    float** L = new float*[featureNum];
-    float** U = new float*[featureNum];
+double NonNaiveBayesClassifier::determinant(fMat matrix) {
+    fMat L = new float*[featureNum];
+    fMat U = new float*[featureNum];
     for (size_t i = 0; i < featureNum; i++){
         L[i] = new float[featureNum];
         U[i] = new float[featureNum];
+        for (size_t j = 0; j < featureNum; j++)
+            L[i][j] = U[i][j] = 0;
     }
     LUdecomposition(matrix, L, U);
     double det = 1.0;
@@ -476,3 +487,161 @@ NonNaiveBayesClassifier::~NonNaiveBayesClassifier(){
     }
 }
 };//namespace bayes
+namespace linear{
+FisherClassifier::~FisherClassifier(){
+    if (projMat != nullptr){
+        for (size_t i = 0; i < Classes::counter; i++)
+            delete[] projMat[i];
+        delete[] projMat;
+    }
+}
+void FisherClassifier::Train(const std::vector<Sample>& samples){
+    using namespace Eigen;
+    featureNum = samples[0].getFeatures().size(); //select all
+    fMat Sw,Sb;
+    Sw= new float*[featureNum];
+    Sb = new float*[featureNum];
+    for (size_t i = 0; i < featureNum; i++){
+        Sw[i] = new float[featureNum];
+        Sb[i] = new float[featureNum];
+        for (size_t j = 0; j < featureNum; j++)
+            Sw[i][j] = 0.0f,Sb[i][j] = 0.0f;
+    }
+
+    CalcSwSb(Sw,Sb,samples);
+
+    float** invSw = new float*[featureNum];
+    for (size_t i = 0; i < featureNum; i++){
+        invSw[i] = new float[featureNum];
+        for (size_t j = 0; j < featureNum; j++)
+            invSw[i][j] = 0.0f;
+    }
+    tcb::CalcInvMat(Sw,invSw,featureNum);
+
+    //std::vector<vFloat> featureMat(featureNum,vFloat(featureNum,0.0f));
+    MatrixXd featureMat(featureNum,featureNum);
+    for (int i = 0; i< featureNum; i++)
+        for (int j = 0; j < featureNum; j++)
+            for (int k = 0; k < featureNum; k++)
+                //featureMat[i][j] += invSw[i][k] * Sb[k][j];
+                featureMat(i,j) += invSw[i][k] * Sb[k][j];
+
+    /*
+    vFloat EigVal(featureNum,0.0f);
+    std::vector<vFloat> EigVec(featureNum,vFloat(featureNum,0.0f));
+    tcb::CalcEigen(featureMat,EigVal,EigVec,featureNum);
+    */
+    
+    SelfAdjointEigenSolver<MatrixXd> eig(featureMat);
+    VectorXd EigVal = eig.eigenvalues().real();
+    MatrixXd EigVec = eig.eigenvectors().real();
+    std::cout<<"Eigenvalues: "<<std::endl;
+    for (int i = 0; i < featureNum; i++)
+        std::cout<<EigVal(i)<<' ';
+    std::cout<<std::endl;
+    std::cout<<"Eigenvectors: "<<std::endl;
+    for (int i = 0; i < featureNum; i++){
+        for (int j = 0; j < featureNum; j++)
+            std::cout<<EigVec(i,j)<<' ';
+        std::cout<<std::endl;
+    }
+    
+
+    const unsigned int classNum = Classes::counter;
+    projMat = new float*[classNum];
+    for (size_t i = 0; i < classNum; i++){
+        projMat[i] = new float[featureNum];
+        for (size_t j = 0; j < featureNum; j++){
+            //projMat[i][j] = EigVec[i][j];
+            projMat[i][j] = EigVec(i,j);
+            std::cout<<projMat[i][j]<<' ';
+        }
+        std::cout<<std::endl;
+    }
+    for(size_t i = 0;i < featureNum;i++){
+        delete[] Sw[i];
+        delete[] Sb[i];
+        delete[] invSw[i];
+    }
+    delete[] Sw;
+    delete[] Sb;
+    delete[] invSw;
+    return;
+}
+Classes FisherClassifier::Predict(const vFloat& x){
+    Classes resClass = Classes::Unknown;
+    double maxProb = -10e9;
+    for (unsigned int classID = 0; classID < Classes::counter; classID++){
+        double prob = 0.0f;
+        for (unsigned int i = 0; i < featureNum; i++)
+            prob += x[i] * projMat[classID][i];
+        if (prob > maxProb){
+            maxProb = prob;
+            resClass = static_cast<Classes>(classID);
+        }
+    }
+    return resClass;
+}
+void FisherClassifier::CalcSwSb(float** Sw,float** Sb,const std::vector<Sample>& samples){
+    unsigned int classNum = Classes::counter;
+    vFloat featureAvg(featureNum, 0.0f);
+
+    std::vector<double> classifiedFeaturesAvg[classNum];
+    for (int i = 0; i < classNum; i++)
+        classifiedFeaturesAvg[i].assign(featureNum,0.0);
+    std::vector<size_t> classRecordNum(classNum,0);
+    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        unsigned int label = static_cast<unsigned int>(it->getLabel());
+        const vFloat& sampleFeature = it->getFeatures();
+        for (unsigned int i = 0; i < featureNum; i++)
+            classifiedFeaturesAvg[label][i] += sampleFeature[i];
+        classRecordNum[label]++;
+    }
+    for (unsigned int i = 0; i < classNum; i++)
+        for (unsigned int j = 0; j < featureNum; j++){
+            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
+            featureAvg[j] += classifiedFeaturesAvg[i][j];
+        }
+    for (unsigned int j = 0; j < featureNum; j++)
+        featureAvg[j] /= classNum;
+
+    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        unsigned int label = it->getLabel();
+        const vFloat& sampleFeature = it->getFeatures();
+        vFloat pd = sampleFeature;
+        for (int j = 0; j < featureNum; j++) 
+            pd[j] -= classifiedFeaturesAvg[label][j];
+        for (int j = 0; j < featureNum; ++j)
+            for (int k = 0; k < featureNum; ++k)
+                Sw[j][k] += pd[j] * pd[k];
+    }
+    for (int i = 0; i < classNum; i++) {
+        vFloat pd(featureNum, 0.0f);
+        for (int j = 0; j < featureNum; j++)
+            pd[j] = classifiedFeaturesAvg[i][j] - featureAvg[j];
+        for (int j = 0; j < featureNum; j++)
+            for (int k = 0; k < featureNum; k++)
+                Sb[j][k] += classRecordNum[i] * pd[j] * pd[k];
+    }
+    return;
+}
+bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
+    int rows = rawimage.rows, cols = rawimage.cols;
+    for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
+        std::vector<Classes> rowClasses;
+        bool lastRowCheck = (r >= (rows - classifierKernelSize));
+        for (int c = classifierKernelSize/2; c <= cols - classifierKernelSize; c+=classifierKernelSize/2){
+            bool lastColCheck = (c >= (cols - classifierKernelSize));
+            cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
+            cv::Mat sample = rawimage(window);
+            std::vector<cv::Mat> channels;
+            vFloat data;
+            tcb::GenerateFeatureChannels(sample, channels);
+            tcb::CalcChannelMeanStds(channels, data);
+            rowClasses.push_back(classifer->Predict(data));
+        }
+        patchClasses.push_back(rowClasses);
+    }
+    return true;
+}
+};//namespace linear
