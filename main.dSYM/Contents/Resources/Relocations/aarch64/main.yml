@@ -1,5 +1,5 @@
 ---
 triple:          'arm64-apple-darwin'
-binary-path:     '/Users/channingtong/Program/fruit_classification/fruit_classification_core/main'
+binary-path:     '/Users/channingtong/Program/pattern_recorgnization/classification_core/main'
 relocations:     []
 ...
