@@ -1,7 +1,8 @@
 #ifndef PROCESSHPP
 #define PROCESSHPP
 #include <opencv2/opencv.hpp>
-#include "../func.hpp"
+#include "fruit.hpp"
+#include "classifier.hpp"
 
 bool FetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage);
 bool CorrectImage(const cv::Mat& inputImage,cv::Mat& image);
@@ -21,7 +22,7 @@ namespace bayes{
 bool CalcClassProb(float* prob);
 bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset);
 template <class paraForm>
-bool BayesClassify(const cv::Mat& rawimage,BayesClassifier<paraForm>* classifer,std::vector<std::vector<Classes>>& patchClasses){
+bool BayesClassify(const cv::Mat& rawimage,T_BayesClassifier<paraForm,Classes>* classifer,std::vector<std::vector<Classes>>& patchClasses){
     int rows = rawimage.rows, cols = rawimage.cols;
     for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
         std::vector<Classes> rowClasses;
