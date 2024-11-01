@@ -1,7 +1,7 @@
 #ifndef PROCESSHPP
 #define PROCESSHPP
 #include <opencv2/opencv.hpp>
-#include "func.hpp"
+#include "../func.hpp"
 
 bool FetchShadow(const cv::Mat &rawimage,cv::Mat &noShadowImage);
 bool CorrectImage(const cv::Mat& inputImage,cv::Mat& image);

@@ -401,7 +401,7 @@ bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const 
                     maskPixels.push_back(res);
                 }
                     
-        cv::imwrite("../results/" + std::to_string(i) + "-temp.png", smoothFruit);
+        cv::imwrite("../fruit/results/" + std::to_string(i) + "-temp.png", smoothFruit);
         double mean = static_cast<double>(total/maskPixels.size()),variance = 0;
         for (std::vector<int>::iterator it = maskPixels.begin(); it != maskPixels.end(); it++)
             variance += (*it - mean) * (*it - mean);
@@ -409,17 +409,17 @@ bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const 
         std::cout<<i<<' '<<std::sqrt(variance)<<' '<<mean<<' '<<maxp<<std::endl;
         if (variance < 22 * 22){
             if (mean < 130)
-                cv::imwrite("../results/" + std::to_string(i) + "-blackplum.png", fruit);
+                cv::imwrite("../fruit/results/" + std::to_string(i) + "-blackplum.png", fruit);
         }else if (mean < 295)
-            cv::imwrite("../results/" + std::to_string(i) + "-grape.png", fruit);
+            cv::imwrite("../fruit/results/" + std::to_string(i) + "-grape.png", fruit);
         else if (mean < 300)
-            cv::imwrite("../results/" + std::to_string(i) + "-dongzao.png", fruit);
+            cv::imwrite("../fruit/results/" + std::to_string(i) + "-dongzao.png", fruit);
         else if (mean < 320)
-            cv::imwrite("../results/" + std::to_string(i) + "-apple.png", fruit);
+            cv::imwrite("../fruit/results/" + std::to_string(i) + "-apple.png", fruit);
         else if (maxp>430)
-            cv::imwrite("../results/" + std::to_string(i) + "-peach.png", fruit);
+            cv::imwrite("../fruit/results/" + std::to_string(i) + "-peach.png", fruit);
         else
-            cv::imwrite("../results/" + std::to_string(i) + "-yellowpeach.png", fruit);
+            cv::imwrite("../fruit/results/" + std::to_string(i) + "-yellowpeach.png", fruit);
     }
     return true;
 }
@@ -430,7 +430,7 @@ bool CalcClassProb(float* prob){
     unsigned int totalRecord = 0;
     for (int i = 0; i < Classes::counter; i++)
         countings[i] = 0;
-    std::string filename = "../sampling/suit3/classification.csv";
+    std::string filename = "../fruit/sampling/suit3/classification.csv";
     std::ifstream file(filename);
     std::string line;
     if (!file.is_open()) {
@@ -469,7 +469,7 @@ bool CalcClassProb(float* prob){
 bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset){
     namespace fs = std::filesystem;
     for (unsigned int suitID = 0; suitID < 3; suitID++){// has sampled 3 suit of samples
-        std::string suitFolderPath = "../sampling/suit" + std::to_string(suitID + 1) + "/";
+        std::string suitFolderPath = "../fruit/sampling/suit" + std::to_string(suitID + 1) + "/";
         for (unsigned int classID = 0; classID < Classes::counter; classID++){
             std::string classFolderPath = suitFolderPath + classFolderNames[classID] + "/";
             if (!fs::exists(classFolderPath))

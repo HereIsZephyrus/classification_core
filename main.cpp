@@ -1,12 +1,9 @@
-//#pragma once
-#include <opencv2/opencv.hpp>
 #include <iostream>
 #include "fruit/fruit.hpp"
+#include "landuse/landuse.hpp"
 
-int LanduseMain();
-int SeriesMain();
 int main(int argc, char* argv[]) {
-    std::string programType = "fruit";
+    std::string programType = "landuse";
     //std::cin>>programType;
     if (programType == "fruit"){
         FruitMain();
@@ -15,11 +12,5 @@ int main(int argc, char* argv[]) {
     }else if (programType == "series"){
         SeriesMain();
     }
-    return 0;
-}
-int LanduseMain(){
-    return 0;
-}
-int SeriesMain(){
     return 0;
 }

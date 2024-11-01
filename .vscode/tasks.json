@@ -1,12 +1,6 @@
 {
     "tasks": [
         {
-        "label": "Open Terminal",
-        "type": "shell",
-        "command": "osascript -e 'tell application \"Terminal\"\ndo script \"echo hello\"\nend tell'",
-        "problemMatcher": []
-        },
-        {
             "type": "cppbuild",
             "label": "C/C++: clang build active file",
             "command": "/usr/bin/clang++",
@@ -23,6 +17,7 @@
                 "-std=c++17",
                 "-g",
                 "${workspaceFolder}/main.cpp",
+                "${workspaceFolder}/func.cpp",
                 "${workspaceFolder}/fruit/*.cpp",
                 "${workspaceFolder}/landuse/*.cpp",
                 "-o",
