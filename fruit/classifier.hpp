@@ -42,7 +42,6 @@ typedef std::vector<Classes> vClasses;
 typedef T_StaticPara<Classes> StaticPara;
 typedef T_Sample<Classes> Sample;
 namespace bayes{
-typedef T_Classifier<Classes> Classifier;
 typedef T_NaiveBayesClassifier<Classes> NaiveBayesClassifier;
 typedef T_NonNaiveBayesClassifier<Classes> NonNaiveBayesClassifier;   
 }

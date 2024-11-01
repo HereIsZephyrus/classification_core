@@ -28,7 +28,12 @@ template <typename classType>
 class T_Sample{
 classType label;
 vFloat features;
-float calcMean(const vFloat& data);
+float calcMean(const vFloat& data){
+    double sum = 0.0f;
+    for (vFloat::const_iterator it = data.begin(); it != data.end(); it++)
+        sum += *it;
+    return static_cast<float>(sum / data.size());
+}
 public:
     T_Sample(classType label,vFloat featureData):label(label),features(featureData){}
     ~T_Sample(){}
@@ -55,7 +60,6 @@ struct convParaList{
     fMat convMat;
     fMat invMat;
 };
-double CalcConv(const vFloat& x, const vFloat& y);
 template <class paraForm,typename classType>
 class T_BayesClassifier : public T_Classifier<classType>{
 protected:
@@ -82,6 +86,7 @@ template <typename classType>
 class T_NaiveBayesClassifier : public T_BayesClassifier<BasicParaList,classType>{
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x);
+    size_t getClassNum() const;
 public:
     T_NaiveBayesClassifier(){this->outputPhotoName = "naiveBayes.png";};
     ~T_NaiveBayesClassifier(){}
@@ -90,9 +95,39 @@ public:
 template <typename classType>
 class T_NonNaiveBayesClassifier : public T_BayesClassifier<convParaList,classType>{
 protected:
+    size_t getClassNum() const;
     double CalculateClassProbability(unsigned int classID,const vFloat& x);
-    void CalcConvMat(fMat convMat,fMat invMat,const std::vector<vFloat>& bucket);
-    void LUdecomposition(fMat matrix, fMat L, fMat U);
+    void CalcConvMat(fMat convMat,fMat invMat,const std::vector<vFloat>& bucket){
+        for (size_t i = 0; i < this->featureNum; i++){
+            convMat[i][i] = CalcConv(bucket[i],bucket[i]) + lambda;
+            for (size_t j = i+1; j < this->featureNum; j++){
+                double conv = CalcConv(bucket[i],bucket[j]);
+                convMat[i][j] = conv * (1.0f - lambda);
+                convMat[j][i] = conv * (1.0f - lambda);
+            }
+        }
+        tcb::CalcInvMat(convMat,invMat,this->featureNum);
+        return;
+    }
+    void LUdecomposition(fMat matrix, fMat L, fMat U){
+        for (int i = 0; i < this->featureNum; i++) { // init LU
+            for (int j = 0; j < this->featureNum; j++) {
+                L[i][j] = 0;
+                U[i][j] = matrix[i][j];
+            }
+            L[i][i] = 1;
+        }
+        for (int i = 0; i < this->featureNum; i++) { // LU decomposition
+            for (int j = i; j < this->featureNum; j++) 
+                for (int k = 0; k < i; ++k) 
+                    U[i][j] -= L[i][k] * U[k][j];
+            for (int j = i + 1; j < this->featureNum; j++) {
+                for (int k = 0; k < i; ++k)
+                    L[j][i] -= L[j][k] * U[k][i];
+                L[j][i] = U[j][i] / U[i][i];
+            }
+        }
+    }
     double determinant(fMat matrix) {
         fMat L = new float*[this->featureNum];
         fMat U = new float*[this->featureNum];
@@ -139,9 +174,16 @@ template <class classType>
 class T_FisherClassifier : public T_Classifier<classType>{
     fMat projMat;
     void CalcSwSb(float** Sw,float** Sb,const std::vector<T_Sample<classType>>& samples);
+    size_t getClassNum() const;
 public:
     T_FisherClassifier() {projMat = nullptr;this->outputPhotoName = "fisher.png";}
-    ~T_FisherClassifier();
+    ~T_FisherClassifier(){
+        if (projMat != nullptr){
+            for (size_t i = 0; i < getClassNum(); i++)
+                delete[] projMat[i];
+            delete[] projMat;
+        }
+    }
     void Train(const std::vector<T_Sample<classType>>& samples);
     classType Predict(const vFloat& x);
 };

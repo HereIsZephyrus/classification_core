@@ -3,7 +3,7 @@
 #include "landuse/landuse.hpp"
 
 int main(int argc, char* argv[]) {
-    std::string programType = "landuse";
+    std::string programType = "fruit";
     //std::cin>>programType;
     if (programType == "fruit"){
         FruitMain();
