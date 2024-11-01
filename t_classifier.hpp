@@ -188,4 +188,16 @@ public:
     classType Predict(const vFloat& x);
 };
 }
+template <class classType>
+class T_SVMClassifier : public T_Classifier<classType>{
+
+};
+template <class classType>
+class T_FCNClassifier : public T_Classifier<classType>{
+
+};
+template <class classType>
+class T_RandomForestClassifier : public T_Classifier<classType>{
+
+};
 #endif

@@ -116,7 +116,7 @@ void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float*
         }
     }
     return;
-};
+}
 template<>
 double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     const unsigned int classNum = getClassNum();

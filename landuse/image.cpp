@@ -1,6 +1,7 @@
 #include "image.hpp"
-void generateFeatureImage(){
+void generateFeatureImage(cv::Mat& rawImage){
     cv::Mat image = cv::imread(FutureCityImage, cv::IMREAD_UNCHANGED);
+    rawImage = image.clone();
     if (image.empty()) {
         std::cerr << "Error: Could not read the image." << std::endl;
         return;
