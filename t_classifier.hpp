@@ -41,6 +41,16 @@ public:
     const vFloat& getFeatures() const{return features;}
 };
 template <typename classType>
+class T_tagSample : public T_Sample<classType>{
+private:
+    bool isTrain;
+public:
+    T_tagSample(classType label,bool typeisTrain,vFloat featureData)
+    :T_Sample<classType>(label,featureData),isTrain(typeisTrain){}
+    ~T_tagSample(){}
+    bool isTrainSample() const {return isTrain;}
+};
+template <typename classType>
 class T_Classifier{
 protected:
     size_t featureNum;
@@ -70,7 +80,7 @@ public:
     ~T_BayesClassifier(){}
     classType Predict(const vFloat& x){
         double maxProb = -10e9;
-        classType bestClass = classType::Unknown;
+        classType bestClass;
         for (unsigned int classID = 0; classID < classType::counter; classID++){
             double prob = CalculateClassProbability(classID,x);
             if (prob > maxProb) {
@@ -193,7 +203,7 @@ class T_SVMClassifier : public T_Classifier<classType>{
 
 };
 template <class classType>
-class T_FCNClassifier : public T_Classifier<classType>{
+class T_BPClassifier : public T_Classifier<classType>{
 
 };
 template <class classType>

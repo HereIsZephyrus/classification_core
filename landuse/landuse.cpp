@@ -14,23 +14,23 @@ int LanduseMain(){
     land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
     bayes->Train(dataset);
     bayes->Classify(rawImage);
-    bayes->print();
+    bayes->Print();
     land_FisherClassifier* fisher = new land_FisherClassifier();
     fisher->Train(dataset);
     fisher->Classify(rawImage);
-    fisher->print();
+    fisher->Print();
     land_SVMClassifier* svm = new land_SVMClassifier();
     svm->Train(dataset);
     svm->Classify(rawImage);
-    svm->print();
+    svm->Print();
     land_FCNClassifier* fcn = new land_FCNClassifier();
     fcn->Train(dataset);
     fcn->Classify(rawImage);
-    fcn->print();
+    fcn->Print();
     land_RandomClassifier* randomforest = new land_RandomClassifier();
     randomforest->Train(dataset);
     randomforest->Classify(rawImage);
-    randomforest->print();
+    randomforest->Print();
     return 0;
 }
 int SeriesMain(){

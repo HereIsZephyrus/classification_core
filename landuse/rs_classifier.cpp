@@ -158,9 +158,7 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& samples){
         for (size_t j = 0; j < featureNum; j++)
             Sw[i][j] = 0.0f,Sb[i][j] = 0.0f;
     }
-
     CalcSwSb(Sw,Sb,samples);
-
     float** invSw = new float*[featureNum];
     for (size_t i = 0; i < featureNum; i++){
         invSw[i] = new float[featureNum];
@@ -168,19 +166,11 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& samples){
             invSw[i][j] = 0.0f;
     }
     tcb::CalcInvMat(Sw,invSw,featureNum);
-
-    //std::vector<vFloat> featureMat(featureNum,vFloat(featureNum,0.0f));
     MatrixXd featureMat(featureNum,featureNum);
     for (int i = 0; i< featureNum; i++)
         for (int j = 0; j < featureNum; j++)
             for (int k = 0; k < featureNum; k++)
-                //featureMat[i][j] += invSw[i][k] * Sb[k][j];
                 featureMat(i,j) += invSw[i][k] * Sb[k][j];
-    /*
-    vFloat EigVal(featureNum,0.0f);
-    std::vector<vFloat> EigVec(featureNum,vFloat(featureNum,0.0f));
-    tcb::CalcEigen(featureMat,EigVal,EigVec,featureNum);
-    */
     SelfAdjointEigenSolver<MatrixXd> eig(featureMat);
     VectorXd EigVal = eig.eigenvalues().real();
     MatrixXd EigVec = eig.eigenvectors().real();
@@ -230,5 +220,25 @@ Classes land_FisherClassifier::Predict(const vFloat& x){
         }
     }
     return resClass;
+}
+template<>
+void land_NaiveBayesClassifier::Classify(const cv::Mat& rawImage){
+
+}
+template<>
+void land_FisherClassifier::Classify(const cv::Mat& rawImage){
+    
+}
+template<>
+void land_SVMClassifier::Classify(const cv::Mat& rawImage){
+    
+}
+template<>
+void land_BPClassifier::Classify(const cv::Mat& rawImage){
+    
+}
+template<>
+void land_RandomClassifier::Classify(const cv::Mat& rawImage){
+    
 }
 }
