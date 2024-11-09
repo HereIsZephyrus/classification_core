@@ -50,23 +50,6 @@ void StaticPara::Sampling(const std::string& entryPath){
     return;
 }
 namespace bayes {
-template<>
-size_t NaiveBayesClassifier::getClassNum() const{return Classes::counter;}
-template<>
-size_t NonNaiveBayesClassifier::getClassNum() const{return Classes::counter;}
-template<>
-double NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    double res = para[static_cast<Classes>(classID)].w;
-    for (unsigned int d = 0; d < featureNum; d++){
-        float pd = x[d] - para[static_cast<Classes>(classID)].mu[d];
-        float vars = para[static_cast<Classes>(classID)].sigma[d] * para[static_cast<Classes>(classID)].sigma[d];
-        double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
-        double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
-        res *= normalize * exponent;
-    }
-    return res;
-}
-template<>
 void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     featureNum = samples[0].getFeatures().size(); //select all
     para.clear();
@@ -117,27 +100,6 @@ void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float*
     }
     return;
 }
-template<>
-double NonNaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    const unsigned int classNum = getClassNum();
-    double res = log(para[static_cast<Classes>(classID)].w);
-    res -= log(determinant(para[classID].convMat))/2;
-    vFloat pd = x;
-    for (unsigned int d = 0; d < featureNum; d++)
-        pd[d] = x[d] - para[static_cast<Classes>(classID)].mu[d];
-    vFloat sumX(featureNum, 0.0);
-    for (size_t i = 0; i < featureNum; i++)
-        for (size_t j = 0; j < featureNum; j++)
-            sumX[i] += x[j] * para[classID].invMat[i][j];
-    for (unsigned int d = 0; d < featureNum; d++){
-        float sum = 0.0f;
-        for (unsigned int j = 0; j < featureNum; j++)
-            sum += sumX[j] * x[j];
-        res -= sum / 2;
-    }
-    return res;
-}
-template<>
 void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
     featureNum = samples[0].getFeatures().size(); //select all
     //std::cout<<featureNum<<std::endl;
@@ -180,52 +142,6 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
 };
 };//namespace bayes
 namespace linear{
-template<>
-size_t FisherClassifier::getClassNum() const{return Classes::counter;}
-template<>
-void FisherClassifier::CalcSwSb(float** Sw,float** Sb,const std::vector<T_Sample<Classes>>& samples){
-    unsigned int classNum = getClassNum();
-    vFloat featureAvg(this->featureNum, 0.0f);
-    std::vector<double> classifiedFeaturesAvg[classNum];
-    for (int i = 0; i < classNum; i++)
-        classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
-    std::vector<size_t> classRecordNum(classNum,0);
-    for (std::vector<T_Sample<Classes>>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < this->featureNum; i++)
-            classifiedFeaturesAvg[label][i] += sampleFeature[i];
-        classRecordNum[label]++;
-    }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < this->featureNum; j++){
-            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-            featureAvg[j] += classifiedFeaturesAvg[i][j];
-        }
-    for (unsigned int j = 0; j < this->featureNum; j++)
-        featureAvg[j] /= classNum;
-
-    for (std::vector<T_Sample<Classes>>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = it->getLabel();
-        const vFloat& sampleFeature = it->getFeatures();
-        vFloat pd = sampleFeature;
-        for (int j = 0; j < this->featureNum; j++) 
-            pd[j] -= classifiedFeaturesAvg[label][j];
-        for (int j = 0; j < this->featureNum; ++j)
-            for (int k = 0; k < this->featureNum; ++k)
-                Sw[j][k] += pd[j] * pd[k];
-    }
-    for (int i = 0; i < classNum; i++) {
-        vFloat pd(this->featureNum, 0.0f);
-        for (int j = 0; j < this->featureNum; j++)
-            pd[j] = classifiedFeaturesAvg[i][j] - featureAvg[j];
-        for (int j = 0; j < this->featureNum; j++)
-            for (int k = 0; k < this->featureNum; k++)
-                Sb[j][k] += classRecordNum[i] * pd[j] * pd[k];
-    }
-    return;
-}
-template<>
 void FisherClassifier::Train(const std::vector<Sample>& samples){
     featureNum = samples[0].getFeatures().size(); //select all
     fMat Sw,Sb;
@@ -294,21 +210,6 @@ void FisherClassifier::Train(const std::vector<Sample>& samples){
     delete[] Sb;
     delete[] invSw;
     return;
-}
-template<>
-Classes FisherClassifier::Predict(const vFloat& x){
-    Classes resClass = Classes::Unknown;
-    double maxProb = -10e9;
-    for (unsigned int classID = 0; classID < getClassNum(); classID++){
-        double prob = 0.0f;
-        for (unsigned int i = 0; i < featureNum; i++)
-            prob += x[i] * projMat[classID][i];
-        if (prob > maxProb){
-            maxProb = prob;
-            resClass = static_cast<Classes>(classID);
-        }
-    }
-    return resClass;
 }
 bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
     int rows = rawimage.rows, cols = rawimage.cols;

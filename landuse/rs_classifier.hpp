@@ -8,33 +8,6 @@
 #include <Eigen/Dense>
 #include "../func.hpp"
 #include "../t_classifier.hpp"
-template <typename classType>
-class assess_Classifier{
-protected:
-    float precision,recall,f1;
-    void Examine(const std::vector<T_Sample<classType>>& samples){
-        size_t pcorrectNum = 0, rcorrectNum = 0;
-        for (std::vector<T_Sample<classType>>::const_iterator it = samples.begin(); it != samples.end(); it++){
-            if (it->isTrainSample())
-                continue;
-            if (Predict(it->getFeatures()) == it->getLabel())
-                pcorrectNum++;
-            if (it->getLabel() == Predict(it->getFeatures()))
-                rcorrectNum++;
-        }
-        precision = static_cast<float>(pcorrectNum)/samples.size();
-        recall = static_cast<float>(rcorrectNum)/samples.size();
-        f1 = 2*precision*recall/(precision+recall);
-    }
-public:
-    virtual classType Predict(const vFloat& x) = 0;
-    virtual void Classify(const cv::Mat& rawImage) = 0;
-    void Print(){
-        std::cout << "Precision: " << precision << std::endl;
-        std::cout << "Recall: " << recall << std::endl;
-        std::cout << "F1: " << f1 << std::endl;
-    }
-};
 namespace weilaicheng{
 enum LandCover : unsigned int{
     Water,
@@ -56,28 +29,44 @@ enum Spectra : unsigned int{
     SpectralNum
 };
 typedef std::vector<LandCover> vCovers;
-typedef T_StaticPara<LandCover> land_StaticPara;
-typedef T_tagSample<LandCover> land_Sample;
+extern std::string classFolderNames[LandCover::CoverType];
+extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
+}
 using namespace bayes;
 using namespace linear;
-class land_NaiveBayesClassifier : public T_NaiveBayesClassifier<LandCover>, public assess_Classifier<LandCover>{
+class land_NaiveBayesClassifier : public T_NaiveBayesClassifier<weilaicheng::LandCover>{
+    size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
+    void Train(const std::vector<land_Sample>& dataset,const float* classProbs) override;
+    bool CalcClassProb(float* prob);
 public:
     void Classify(const cv::Mat& rawImage);
+    double CalculateClassProbability(unsigned int classID,const vFloat& x) override;
+    void Train(const std::vector<land_Sample>& dataset);
 };
-class land_FisherClassifier : public T_FisherClassifier<LandCover>, public assess_Classifier<LandCover>{
+class land_FisherClassifier : public T_FisherClassifier<weilaicheng::LandCover>{
+    size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
     void Classify(const cv::Mat& rawImage);
+    void Train(const std::vector<land_Sample>& dataset) override;
 };
-class land_SVMClassifier : public T_SVMClassifier<LandCover>, public assess_Classifier<LandCover>{
+class land_SVMClassifier : public T_SVMClassifier<weilaicheng::LandCover>{
+    size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
     void Classify(const cv::Mat& rawImage);
+    void Train(const std::vector<land_Sample>& dataset) override;
 };
-class land_BPClassifier : public T_BPClassifier<LandCover>, public assess_Classifier<LandCover>{
+class land_BPClassifier : public T_BPClassifier<weilaicheng::LandCover>{
+    size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
     void Classify(const cv::Mat& rawImage);
+    void Train(const std::vector<land_Sample>& dataset) override;
 };
-class land_RandomClassifier : public T_RandomForestClassifier<LandCover>, public assess_Classifier<LandCover>{
+class land_RandomClassifier : public T_RandomForestClassifier<weilaicheng::LandCover>{
+    size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
     void Classify(const cv::Mat& rawImage);
+    void Train(const std::vector<land_Sample>& dataset) override;
 };
+typedef T_StaticPara<weilaicheng::LandCover> land_StaticPara;
+typedef T_Sample<weilaicheng::LandCover> land_Sample;
 #endif

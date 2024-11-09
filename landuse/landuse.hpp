@@ -4,6 +4,10 @@
 #include <iostream>
 #include <cstring>
 #include <string>
+#include "rs_classifier.hpp"
 int LanduseMain();
 int SeriesMain();
+namespace weilaicheng{
+bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset);
+}
 #endif

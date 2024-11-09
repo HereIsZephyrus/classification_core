@@ -5,5 +5,5 @@
 #include <iostream>
 #include <cstring>
 #include <string>
-void generateFeatureImage();
+void generateFeatureImage(cv::Mat& rawImage);
 #endif

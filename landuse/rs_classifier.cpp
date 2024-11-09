@@ -1,7 +1,20 @@
+#include <Eigen/Dense>
+#include <iostream>
+#include <fstream>
 #include "rs_classifier.hpp"
+using namespace Eigen;
 namespace weilaicheng{
+std::string classFolderNames[LandCover::CoverType] = 
+{"Water","Greenland","bareland","Imprevious"};
+std::unordered_map<LandCover,cv::Scalar> classifyColor = {
+    {LandCover::Water,cv::Scalar(255,0,0)}, // blue
+    {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
+    {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone,
+    {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
+};
+}
 template<>
-void land_StaticPara::InitClassType(LandCover ID){
+void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
     recordNum = 0;
     classID = ID;
     avg.clear();
@@ -22,7 +35,7 @@ void land_StaticPara::Sampling(const std::string& entryPath){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
             vFloat means, vars;
-            for (unsigned int i = 0; i < Spectra::spectralNum; i++){
+            for (unsigned int i = 0; i < weilaicheng::Spectra::SpectralNum; i++){
                 cv::Mat viewingPatch = channels[i](window);
                 cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
@@ -36,21 +49,19 @@ void land_StaticPara::Sampling(const std::string& entryPath){
     }
     return;
 }
-template<>
 double land_NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    double res = para[static_cast<LandCover>(classID)].w;
+    double res = para[static_cast<weilaicheng::LandCover>(classID)].w;
     for (unsigned int d = 0; d < featureNum; d++){
-        float pd = x[d] - para[static_cast<LandCover>(classID)].mu[d];
-        float vars = para[static_cast<LandCover>(classID)].sigma[d] * para[static_cast<LandCover>(classID)].sigma[d];
+        float pd = x[d] - para[static_cast<weilaicheng::LandCover>(classID)].mu[d];
+        float vars = para[static_cast<weilaicheng::LandCover>(classID)].sigma[d] * para[static_cast<weilaicheng::LandCover>(classID)].sigma[d];
         double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
         double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
         res *= normalize * exponent;
     }
     return res;
 }
-template<>
-void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& samples,const float* classProbs){
-    featureNum = samples[0].getFeatures().size(); //select all
+void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset,const float* classProbs){
+    featureNum = dataset[0].getFeatures().size(); //select all
     para.clear();
     unsigned int classNum = getClassNum();
     std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
@@ -59,7 +70,7 @@ void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& samples,co
         classifiedFeaturesVar[i].assign(featureNum,0.0);
     }
     std::vector<size_t> classRecordNum(classNum,0);
-    for (std::vector<land_Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+    for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
         unsigned int label = static_cast<unsigned int>(it->getLabel());
         const vFloat& sampleFeature = it->getFeatures();
         for (unsigned int i = 0; i < featureNum; i++)
@@ -69,7 +80,7 @@ void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& samples,co
     for (unsigned int i = 0; i < classNum; i++)
         for (unsigned int j = 0; j < featureNum; j++)
             classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-    for (std::vector<land_Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
+    for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
         unsigned int label = static_cast<unsigned int>(it->getLabel());
         const vFloat& sampleFeature = it->getFeatures();
         for (unsigned int i = 0; i < featureNum; i++)
@@ -99,56 +110,51 @@ void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& samples,co
     }
     return;
 }
-template<>
-size_t land_NaiveBayesClassifier::getClassNum() const{return LandCover::CoverType;}
-template<>
-size_t land_FisherClassifier::getClassNum() const{return LandCover::CoverType;}
-template<>
-void land_FisherClassifier::CalcSwSb(float** Sw,float** Sb,const std::vector<land_Sample>& samples){
-    unsigned int classNum = getClassNum();
-    vFloat featureAvg(this->featureNum, 0.0f);
-    std::vector<double> classifiedFeaturesAvg[classNum];
-    for (int i = 0; i < classNum; i++)
-        classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
-    std::vector<size_t> classRecordNum(classNum,0);
-    for (std::vector<land_Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < this->featureNum; i++)
-            classifiedFeaturesAvg[label][i] += sampleFeature[i];
-        classRecordNum[label]++;
+bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
+    using namespace weilaicheng;
+    unsigned int* countings = new unsigned int[LandCover::CoverType];
+    unsigned int totalRecord = 0;
+    for (int i = 0; i < LandCover::CoverType; i++)
+        countings[i] = 0;
+    std::string filename = "../landuse/sampling/classification.csv";
+    std::ifstream file(filename);
+    std::string line;
+    if (!file.is_open()) {
+        std::cerr << "can't open file!" << filename << std::endl;
+        return false;
     }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < this->featureNum; j++){
-            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-            featureAvg[j] += classifiedFeaturesAvg[i][j];
-        }
-    for (unsigned int j = 0; j < this->featureNum; j++)
-        featureAvg[j] /= classNum;
-
-    for (std::vector<land_Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = it->getLabel();
-        const vFloat& sampleFeature = it->getFeatures();
-        vFloat pd = sampleFeature;
-        for (int j = 0; j < this->featureNum; j++) 
-            pd[j] -= classifiedFeaturesAvg[label][j];
-        for (int j = 0; j < this->featureNum; ++j)
-            for (int k = 0; k < this->featureNum; ++k)
-                Sw[j][k] += pd[j] * pd[k];
+    std::getline(file, line);// throw header
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<std::string> row;
+        while (std::getline(ss, value, ',')) {}
+        totalRecord++;
+        value.pop_back();
+        if (value == "Water")
+            countings[LandCover::Water]++;
+        else if (value == "Greenland")
+            countings[LandCover::Greenland]++;
+        else if (value == "Bareland")
+            countings[LandCover::Bareland]++;
+        else if (value == "Imprevious")
+            countings[LandCover::Imprevious]++;
     }
-    for (int i = 0; i < classNum; i++) {
-        vFloat pd(this->featureNum, 0.0f);
-        for (int j = 0; j < this->featureNum; j++)
-            pd[j] = classifiedFeaturesAvg[i][j] - featureAvg[j];
-        for (int j = 0; j < this->featureNum; j++)
-            for (int k = 0; k < this->featureNum; k++)
-                Sb[j][k] += classRecordNum[i] * pd[j] * pd[k];
-    }
-    return;
+    file.close();
+    for (int i = 0; i < LandCover::CoverType; i++)
+        prob[i] = static_cast<float>(countings[i]) / totalRecord;
+    delete[] countings;
+    return true;
 }
-template<>
-void land_FisherClassifier::Train(const std::vector<land_Sample>& samples){
-    featureNum = samples[0].getFeatures().size(); //select all
+void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset){
+    unsigned int classesNum = weilaicheng::LandCover::CoverType;
+    float* classProbs = new float[classesNum];
+    CalcClassProb(classProbs);
+    Train(dataset,classProbs);
+    delete[] classProbs;
+}
+void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
+    featureNum = dataset[0].getFeatures().size(); //select all
     fMat Sw,Sb;
     Sw= new float*[featureNum];
     Sb = new float*[featureNum];
@@ -158,7 +164,7 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& samples){
         for (size_t j = 0; j < featureNum; j++)
             Sw[i][j] = 0.0f,Sb[i][j] = 0.0f;
     }
-    CalcSwSb(Sw,Sb,samples);
+    CalcSwSb(Sw,Sb,dataset);
     float** invSw = new float*[featureNum];
     for (size_t i = 0; i < featureNum; i++){
         invSw[i] = new float[featureNum];
@@ -206,39 +212,33 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& samples){
     delete[] invSw;
     return;
 }
-template<>
-Classes land_FisherClassifier::Predict(const vFloat& x){
-    Classes resClass = Classes::Unknown;
-    double maxProb = -10e9;
-    for (unsigned int classID = 0; classID < getClassNum(); classID++){
-        double prob = 0.0f;
-        for (unsigned int i = 0; i < featureNum; i++)
-            prob += x[i] * projMat[classID][i];
-        if (prob > maxProb){
-            maxProb = prob;
-            resClass = static_cast<Classes>(classID);
-        }
-    }
-    return resClass;
+void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset){
+
 }
-template<>
+void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
+
+}
+void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
+
+}
+void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
+
+}
+void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
+
+}
 void land_NaiveBayesClassifier::Classify(const cv::Mat& rawImage){
 
 }
-template<>
 void land_FisherClassifier::Classify(const cv::Mat& rawImage){
     
 }
-template<>
 void land_SVMClassifier::Classify(const cv::Mat& rawImage){
     
 }
-template<>
 void land_BPClassifier::Classify(const cv::Mat& rawImage){
     
 }
-template<>
 void land_RandomClassifier::Classify(const cv::Mat& rawImage){
     
-}
 }
