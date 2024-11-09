@@ -3,16 +3,6 @@
 #include <fstream>
 #include "rs_classifier.hpp"
 using namespace Eigen;
-namespace weilaicheng{
-std::string classFolderNames[LandCover::CoverType] = 
-{"Water","Greenland","bareland","Imprevious"};
-std::unordered_map<LandCover,cv::Scalar> classifyColor = {
-    {LandCover::Water,cv::Scalar(255,0,0)}, // blue
-    {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
-    {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone,
-    {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
-};
-}
 template<>
 void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
     recordNum = 0;
@@ -49,6 +39,15 @@ void land_StaticPara::Sampling(const std::string& entryPath){
     }
     return;
 }
+namespace weilaicheng{
+std::string classFolderNames[LandCover::CoverType] = 
+{"Water","Greenland","bareland","Imprevious"};
+std::unordered_map<LandCover,cv::Scalar> classifyColor = {
+    {LandCover::Water,cv::Scalar(255,0,0)}, // blue
+    {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
+    {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone,
+    {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
+};
 double land_NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
     double res = para[static_cast<weilaicheng::LandCover>(classID)].w;
     for (unsigned int d = 0; d < featureNum; d++){
@@ -212,12 +211,6 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
     delete[] invSw;
     return;
 }
-void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset){
-
-}
-void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
-
-}
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
 
 }
@@ -241,4 +234,5 @@ void land_BPClassifier::Classify(const cv::Mat& rawImage){
 }
 void land_RandomClassifier::Classify(const cv::Mat& rawImage){
     
+}
 }

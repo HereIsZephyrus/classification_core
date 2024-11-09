@@ -48,12 +48,13 @@ protected:
     std::string outputPhotoName;
     float precision,recall,f1;
 public:
+    using SampleList = std::vector<T_Sample<classType>>;
     virtual classType Predict(const vFloat& x) = 0;
-    virtual size_t getClassNum() const = 0;
+    virtual size_t getClassNum() const{return 0;}
     const std::string& printPhoto() const{return outputPhotoName;}
     void Examine(const std::vector<T_Sample<classType>>& samples){
         size_t pcorrectNum = 0, rcorrectNum = 0;
-        for (std::vector<T_Sample<classType>>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())
                 continue;
             if (Predict(it->getFeatures()) == it->getLabel())
@@ -91,9 +92,10 @@ public:
     T_BayesClassifier(){}
     ~T_BayesClassifier(){}
     classType Predict(const vFloat& x){
+        unsigned int classNum = this->getClassNum();
         double maxProb = -10e9;
         classType bestClass;
-        for (unsigned int classID = 0; classID < classType::counter; classID++){
+        for (unsigned int classID = 0; classID < classNum; classID++){
             double prob = CalculateClassProbability(classID,x);
             if (prob > maxProb) {
                 maxProb = prob;
@@ -108,21 +110,13 @@ template <typename classType>
 class T_NaiveBayesClassifier : public T_BayesClassifier<BasicParaList,classType>{
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x){
-        const unsigned int classNum = getClassNum();
-        double res = log(this->para[static_cast<classType>(classID)].w);
-        res -= log(determinant(this->para[classID].convMat))/2;
-        vFloat pd = x;
-        for (unsigned int d = 0; d < featureNum; d++)
-            pd[d] = x[d] - this->para[static_cast<classType>(classID)].mu[d];
-        vFloat sumX(featureNum, 0.0);
-        for (size_t i = 0; i < featureNum; i++)
-            for (size_t j = 0; j < featureNum; j++)
-                sumX[i] += x[j] * this->para[classID].invMat[i][j];
-        for (unsigned int d = 0; d < featureNum; d++){
-            float sum = 0.0f;
-            for (unsigned int j = 0; j < featureNum; j++)
-                sum += sumX[j] * x[j];
-            res -= sum / 2;
+        double res = this->para[static_cast<classType>(classID)].w;
+        for (unsigned int d = 0; d < this->featureNum; d++){
+            float pd = x[d] - this->para[static_cast<classType>(classID)].mu[d];
+            float vars = this->para[static_cast<classType>(classID)].sigma[d] * this->para[static_cast<classType>(classID)].sigma[d];
+            double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
+            double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
+            res *= normalize * exponent;
         }
         return res;
     }
@@ -133,7 +127,25 @@ public:
 template <typename classType>
 class T_NonNaiveBayesClassifier : public T_BayesClassifier<convParaList,classType>{
 protected:
-    virtual double CalculateClassProbability(unsigned int classID,const vFloat& x);
+    double CalculateClassProbability(unsigned int classID,const vFloat& x){
+        const unsigned int classNum = this->getClassNum();
+        double res = log(this->para[static_cast<classType>(classID)].w);
+        res -= log(determinant(this->para[classID].convMat))/2;
+        vFloat pd = x;
+        for (unsigned int d = 0; d < this->featureNum; d++)
+            pd[d] = x[d] - this->para[static_cast<classType>(classID)].mu[d];
+        vFloat sumX(this->featureNum, 0.0);
+        for (size_t i = 0; i < this->featureNum; i++)
+            for (size_t j = 0; j < this->featureNum; j++)
+                sumX[i] += x[j] * this->para[classID].invMat[i][j];
+        for (unsigned int d = 0; d < this->featureNum; d++){
+            float sum = 0.0f;
+            for (unsigned int j = 0; j < this->featureNum; j++)
+                sum += sumX[j] * x[j];
+            res -= sum / 2;
+        }
+        return res;
+    }
     void CalcConvMat(fMat convMat,fMat invMat,const std::vector<vFloat>& bucket){
         for (size_t i = 0; i < this->featureNum; i++){
             convMat[i][i] = CalcConv(bucket[i],bucket[i]) + lambda;
@@ -212,43 +224,44 @@ protected:
     using SampleType = T_Sample<classType>;
     fMat projMat;
     void CalcSwSb(float** Sw,float** Sb,const std::vector<SampleType>& samples){
-        unsigned int classNum = getClassNum();
-        vFloat featureAvg(featureNum, 0.0f);
+        using SampleList = std::vector<T_Sample<classType>>;
+        unsigned int classNum = this->getClassNum();
+        vFloat featureAvg(this->featureNum, 0.0f);
         std::vector<double> classifiedFeaturesAvg[classNum];
         for (int i = 0; i < classNum; i++)
-            classifiedFeaturesAvg[i].assign(featureNum,0.0);
+            classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
         std::vector<size_t> classRecordNum(classNum,0);
-        for (std::vector<SampleType>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             unsigned int label = static_cast<unsigned int>(it->getLabel());
             const vFloat& sampleFeature = it->getFeatures();
-            for (unsigned int i = 0; i < featureNum; i++)
+            for (unsigned int i = 0; i < this->featureNum; i++)
                 classifiedFeaturesAvg[label][i] += sampleFeature[i];
             classRecordNum[label]++;
         }
         for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < featureNum; j++){
+        for (unsigned int j = 0; j < this->featureNum; j++){
             classifiedFeaturesAvg[i][j] /= classRecordNum[i];
             featureAvg[j] += classifiedFeaturesAvg[i][j];
         }
-        for (unsigned int j = 0; j < featureNum; j++)
+        for (unsigned int j = 0; j < this->featureNum; j++)
             featureAvg[j] /= classNum;
 
-        for (std::vector<SampleType>::const_iterator it = samples.begin(); it != samples.end(); it++){
+        for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             unsigned int label = it->getLabel();
             const vFloat& sampleFeature = it->getFeatures();
             vFloat pd = sampleFeature;
-            for (int j = 0; j < featureNum; j++) 
+            for (int j = 0; j < this->featureNum; j++) 
                 pd[j] -= classifiedFeaturesAvg[label][j];
-            for (int j = 0; j < featureNum; ++j)
-                for (int k = 0; k < featureNum; ++k)
+            for (int j = 0; j < this->featureNum; ++j)
+                for (int k = 0; k < this->featureNum; ++k)
                     Sw[j][k] += pd[j] * pd[k];
         }
         for (int i = 0; i < classNum; i++) {
-            vFloat pd(featureNum, 0.0f);
-            for (int j = 0; j < featureNum; j++)
+            vFloat pd(this->featureNum, 0.0f);
+            for (int j = 0; j < this->featureNum; j++)
                 pd[j] = classifiedFeaturesAvg[i][j] - featureAvg[j];
-            for (int j = 0; j < featureNum; j++)
-                for (int k = 0; k < featureNum; k++)
+            for (int j = 0; j < this->featureNum; j++)
+                for (int k = 0; k < this->featureNum; k++)
                     Sb[j][k] += classRecordNum[i] * pd[j] * pd[k];
         }
     }
@@ -256,7 +269,7 @@ public:
     T_FisherClassifier() {projMat = nullptr;this->outputPhotoName = "fisher.png";}
     ~T_FisherClassifier(){
         if (projMat != nullptr){
-            for (size_t i = 0; i < getClassNum(); i++)
+            for (size_t i = 0; i < this->getClassNum(); i++)
                 delete[] projMat[i];
             delete[] projMat;
         }
@@ -265,9 +278,9 @@ public:
     classType Predict(const vFloat& x){
         classType resClass;
         double maxProb = -10e9;
-        for (unsigned int classID = 0; classID < getClassNum(); classID++){
+        for (unsigned int classID = 0; classID < this->getClassNum(); classID++){
             double prob = 0.0f;
-            for (unsigned int i = 0; i < featureNum; i++)
+            for (unsigned int i = 0; i < this->featureNum; i++)
                 prob += x[i] * projMat[classID][i];
             if (prob > maxProb){
                 maxProb = prob;

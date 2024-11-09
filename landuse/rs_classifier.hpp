@@ -32,6 +32,9 @@ typedef std::vector<LandCover> vCovers;
 extern std::string classFolderNames[LandCover::CoverType];
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 }
+typedef T_StaticPara<weilaicheng::LandCover> land_StaticPara;
+typedef T_Sample<weilaicheng::LandCover> land_Sample;
+namespace weilaicheng{
 using namespace bayes;
 using namespace linear;
 class land_NaiveBayesClassifier : public T_NaiveBayesClassifier<weilaicheng::LandCover>{
@@ -67,6 +70,5 @@ public:
     void Classify(const cv::Mat& rawImage);
     void Train(const std::vector<land_Sample>& dataset) override;
 };
-typedef T_StaticPara<weilaicheng::LandCover> land_StaticPara;
-typedef T_Sample<weilaicheng::LandCover> land_Sample;
+}
 #endif
