@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <Eigen/Dense>
+#include <memory>
 #include "func.hpp"
 
 constexpr int defaultClassifierKernelSize = 9;
@@ -380,12 +381,85 @@ public:
 }
 template <class classType>
 class T_SVMClassifier : public T_Classifier<classType>{
+protected:
+    double bias;
+    std::vector<double> weights;
+    double learningRate;
+    int maxIter;
+    constexpr double regularizationParam = 0.01;
+    double weightProduct(const std::vector<int>& vec) {
+        double result = 0.0;
+        for (size_t i = 0; i < weights.size(); i++) {
+            result += weights[i] * vec[i];
+        }
+        return result;
+    }
+    class OVOSVM {
+    public:
+        OVOSVM(classType pos,classType neg,double learningRate = 0.8, int maxIter = 1000)
+        : learningRate(learningRate),maxIter(maxIter),positiveClass(pos),negetiveClass(neg) {}
+        void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
+            int sampleNum = X.size();
+            int featureNum = X[0].size();
+            // Initialize weights and bias
+            weights.assign(featureNum, 0.0);
+            bias = 0.0;
+            // Training the SVM
+            for (int iter = 0; iter < maxIter; ++iter) {
+                for (int i = 0; i < sampleNum; ++i) {
+                    double linear_output = weighting(weights, X[i]) + bias;
+                    if (y[i] * linear_output < 1) {
+                        // Update weights and bias
+                        for (int j = 0; j < featureNum; ++j)
+                            weights[j] += learningRate * (y[i] * X[i][j] - 2 * regularizationParam * weights[j]);
+                        bias += learningRate * y[i];
+                    } else {
+                        // Regularization
+                        for (int j = 0; j < featureNum; ++j)
+                            weights[j] -= learningRate * 2 * regularizationParam * weights[j];
+                    }
+                }
+            }
+        }
+        bool predict(const vFloat& sample) const{return weighting(weights, sample) + bias;}
+        classType getPositiveClass() const{ return positiveClass; }
+        classType getNegetiveClass() const{ return negetiveClass; }
+    private:
+        double learningRate;
+        int maxIter;
+        double bias;
+        vFloat weights;
+        double regularizationParam = 0.01;
+        classType positiveClass,negetiveClass;
+        double weighting(const std::vector<double>& vec) {
+            double result = 0.0;
+            for (size_t i = 0; i < vec.size(); i++) {
+                result += weights[i] * vec[i];
+            }
+            return result;
+        }
+    };
+    std::vector<std::unique_ptr<OVOSVM>> classifiers;
 public:
-    T_SVMClassifier() {this->outputPhotoName = "svm.png";}
+    T_SVMClassifier(double rate = 0.8f, int iter = 1000):learningRate(rate),maxIter(iter) {this->outputPhotoName = "svm.png";}
     ~T_SVMClassifier(){}
     virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
         classType resClass;
+        std::vector<int> classVote[getClassNum()];
+        classVote.assign(getClassNum(),0);
+        for (std::vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
+            if (it->getNegtiveClass() > getClassNum()){
+                if (it->predict(x))
+                    return it->getPositiveClass();
+            }else{
+                if (it->predict(x))
+                    ++classVote[static_cast<unsigned int>(it->getPositiveClass())];
+                else
+                    ++classVote[static_cast<unsigned int>(it->getNegetiveClass())];
+            }
+        }
+
         return resClass;
     }
 };

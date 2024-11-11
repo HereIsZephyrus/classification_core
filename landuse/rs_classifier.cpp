@@ -137,7 +137,7 @@ bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
     return true;
 }
 void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset){
-    unsigned int classesNum = weilaicheng::LandCover::CoverType;
+    unsigned int classesNum = getClassNum();
     float* classProbs = new float[classesNum];
     CalcClassProb(classProbs);
     Train(dataset,classProbs);
@@ -203,7 +203,43 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
     return;
 }
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
-
+    featureNum = dataset[0].getFeatures().size(); //select all
+    unsigned int classNum = getClassNum();
+    std::vector<vFloat> waterPN,classCount[classNum];
+    std::vector<int> waterLabel;
+    int selectTag = 0;
+    for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
+        unsigned int classID = static_cast<unsigned int>(it->getLabel());
+        if (it->getLabel() == LandCover::Water){
+            waterPN.push_back(it->getFeatures());
+            waterLabel.push_back(0);
+        }else{
+            if (!selectTag){
+                waterPN.push_back(it->getFeatures());
+                waterLabel.push_back(1);
+            }
+            selectTag = (selectTag+1)%3;
+        }
+        classCount[classID].push_back(it->getFeatures());
+    }
+    std::unique_ptr<OVOSVM> waterClassifier = std::make_unique<OVOSVM>(LandCover::Water,LandCover::UNCLASSIFIED);
+    waterClassifier->fit(waterPN,waterLabel);
+    classifiers.push_back(std::move(waterClassifier));
+    unsigned int waterID = static_cast<unsigned int>(LandCover::Water);
+    for (unsigned int i = 0; i < classNum; i++)
+        for (unsigned int j = 0; j < classNum; j++){
+            if (i == waterID || j == waterID)
+                continue;
+            std::vector<vFloat> classPN = classCount[i];
+            std::vector<int> classLabeli,classLabelj;
+            classLabeli.assign(classCount[i].size(),0);
+            classLabelj.assign(classCount[j].size(),1);
+            classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
+            classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
+            std::unique_ptr<OVOSVM> classifier = std::make_unique<OVOSVM>(static_cast<LandCover>(i),static_cast<LandCover>(j));
+            classifier->fit(classPN,classLabeli);
+            classifiers.push_back(std::move(classifier));
+        }
 }
 void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
 
