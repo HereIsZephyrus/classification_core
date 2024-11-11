@@ -1,11 +1,11 @@
 #ifndef TCLASSIFIER_HPP
 #define TCLASSIFIER_HPP
-#include <opencv2/opencv.hpp>
 #include <cstring>
 #include <string>
 #include <map>
-#include <Eigen/Dense>
 #include <memory>
+#include <Eigen/Dense>
+#include <opencv2/opencv.hpp>
 #include "func.hpp"
 
 constexpr int defaultClassifierKernelSize = 9;
@@ -383,7 +383,7 @@ template <class classType>
 class T_SVMClassifier : public T_Classifier<classType>{
 protected:
     double bias;
-    std::vector<double> weights;
+    vFloat weights;
     double learningRate;
     int maxIter;
     constexpr double regularizationParam = 0.01;
@@ -406,7 +406,7 @@ protected:
             bias = 0.0;
             // Training the SVM
             for (int iter = 0; iter < maxIter; ++iter) {
-                for (int i = 0; i < sampleNum; ++i) {
+                for (int i = 0; i < sampleNum; i++) {
                     double linear_output = weighting(weights, X[i]) + bias;
                     if (y[i] * linear_output < 1) {
                         // Update weights and bias
@@ -431,7 +431,7 @@ protected:
         vFloat weights;
         double regularizationParam = 0.01;
         classType positiveClass,negetiveClass;
-        double weighting(const std::vector<double>& vec) {
+        double weighting(const vFloat& vec) {
             double result = 0.0;
             for (size_t i = 0; i < vec.size(); i++) {
                 result += weights[i] * vec[i];
@@ -445,7 +445,6 @@ public:
     ~T_SVMClassifier(){}
     virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        classType resClass;
         std::vector<int> classVote[getClassNum()];
         classVote.assign(getClassNum(),0);
         for (std::vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
@@ -459,30 +458,166 @@ public:
                     ++classVote[static_cast<unsigned int>(it->getNegetiveClass())];
             }
         }
-
+        int maxVote = 0;
+        classType resClass;
+        for (std::vector<int>::const_iterator it = classVote.begin(); it != classVote.end(); it++)
+            if (*it > maxVote){
+                maxVote = *it;
+                resClass = static_cast<classType>(it - classVote.begin());
+            }
         return resClass;
     }
 };
 template <class classType>
 class T_BPClassifier : public T_Classifier<classType>{
+protected:
+    int classNum;
+    vFloat weights;
+    double learningRate;
+    vFloat forward(const vFloat& inputs) {
+        float output = 0;
+        for (int i = 0; i < this->featureNum; i++)
+            output += inputs[i] * weights[i];
+        output = activation(output);
+        return output;
+    }
+    void backward(const vFloat& inputs, classType targets) {
+        float output = forward(inputs);
+        float errors = static_cast<float>(targets) - outputs;
+        for (int i = 0; i < this->featureNum; i++)
+            weights[i] += learningRate * errors * inputs[i];
+    }
+    double activation(double x) {return 1.0 / (1.0 + exp(-x));}
 public:
-    T_BPClassifier() {this->outputPhotoName = "bp.png";}
+    T_BPClassifier(double rate = 0.3):classNum(0),learningRate(rate) {this->outputPhotoName = "bp.png";}
     ~T_BPClassifier(){}
     virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        classType resClass;
-        return resClass;
+        float res = 0;
+        for (int i = 0; i < this->featureNum; i++)
+            res += x[i] * weights[i];
+        return static_cast<classType>((unsigned int)(res + 0.5));
     }
 };
 template <class classType>
 class T_RandomForestClassifier : public T_Classifier<classType>{
+protected:
+    class DecisionTree {
+    public:
+        DecisionTree(int maxDepth) : maxDepth(maxDepth) {}
+        void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
+            this->X = X;
+            this->y = y;
+            root = buildTree(0);
+        }
+        classType predict(const vFloat& sample) {return traverseTree(root, sample);}
+    private:
+        struct Node {
+            int featureIndex = -1;
+            double threshold = 0;
+            classType label;
+            Node* left = nullptr;
+            Node* right = nullptr;
+        };
+        Node* root;
+        int maxDepth;
+        std::vector<vFloat> X;
+        std::vector<classType> y;
+        Node* buildTree(int depth) {
+            // Base case: if all labels are the same or max depth reached
+            if (depth >= maxDepth || std::all_of(y.begin(), y.end(), [&](classType label) { return label == y[0]; }))
+                return new Node{ -1, 0, y[0] }; // Return a leaf node
+            // Find the best split
+            int bestFeature = -1;
+            double bestThreshold = 0;
+            int bestGain = -1;
+            for (size_t featureIndex = 0; featureIndex < X[0].size(); featureIndex++){
+                // Collect potential thresholds
+                vFloat thresholds;
+                for (const std::vector<vFloat>::iterator sample = X.begin(); sample != X.end(); sample++)
+                    thresholds.push_back((*sample)[featureIndex]);
+                std::sort(thresholds.begin(), thresholds.end());
+                thresholds.erase(std::unique(thresholds.begin(), thresholds.end()), thresholds.end());
+                for (vFloat::iterator threshold = thresholds.begin(); threshold != thresholds.end(); threshold++) {
+                    std::vector<int> leftLabels, rightLabels;
+                    for (size_t i = 0; i < X.size(); ++i) {
+                        if (X[i][featureIndex] <= *threshold)
+                            leftLabels.push_back(y[i]);
+                        else
+                            rightLabels.push_back(y[i]);
+                    }
+                    int gain = calculateGain(leftLabels, rightLabels);
+                    if (gain > bestGain) {
+                        bestGain = gain;
+                        bestFeature = featureIndex;
+                        bestThreshold = *threshold;
+                    }
+                }
+            }
+            if (bestGain == -1)
+                return new Node{ -1, 0, y[0] }; // Create a leaf node
+            // Split datasets
+            std::vector<vFloat> leftX, rightX;
+            std::vector<int> leftY, rightY;
+            for (size_t i = 0; i < X.size(); ++i)
+                if (X[i][bestFeature] <= bestThreshold) {
+                    leftX.push_back(X[i]);
+                    leftY.push_back(y[i]);
+                } else {
+                    rightX.push_back(X[i]);
+                    rightY.push_back(y[i]);
+                }
+            Node* node = new Node{ bestFeature, bestThreshold, -1 };
+            node->left = buildTree(depth + 1);
+            node->right = buildTree(depth + 1);
+            return node;
+        }
+        classType traverseTree(Node* node, const vFloat& sample) {
+            if (node->label != -1)
+                return node->label; // Leaf node
+            if (sample[node->featureIndex] <= node->threshold)
+                return traverseTree(node->left, sample);
+            else
+                return traverseTree(node->right, sample);
+        }
+        int calculateGain(const std::vector<int>& leftLabels, const std::vector<int>& rightLabels) {
+            // Implement simple gain calculation (Gini impurity or entropy)
+            int leftSize = leftLabels.size();
+            int rightSize = rightLabels.size();
+            int totalSize = leftSize + rightSize;
+            if (totalSize == 0) return 0;
+            double leftImpurity = calculateImpurity(leftLabels);
+            double rightImpurity = calculateImpurity(rightLabels);
+            return (leftImpurity * leftSize + rightImpurity * rightSize);
+        }
+        double calculateImpurity(const std::vector<int>& labels) {
+            std::map<int, int> counts;
+            for (int label : labels) {
+                counts[label]++;
+            }
+            double impurity = 1.0;
+            for (const auto& count : counts) {
+                double prob = static_cast<double>(count.second) / labels.size();
+                impurity -= prob * prob;
+            }
+            return impurity;
+        }
+    };
+    int nTrees;
+    int maxDepth;
+    std::vector<DecisionTree> trees;
 public:
-    T_RandomForestClassifier() {this->outputPhotoName = "rf.png";}
+    T_RandomForestClassifier(int nTrees, int maxDepth) : nTrees(nTrees), maxDepth(maxDepth) {this->outputPhotoName = "rf.png";}
     ~T_RandomForestClassifier(){}
     virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        classType resClass;
-        return resClass;
+        std::map<classType, int> votes;
+        for (std::vector<DecisionTree>::const_iterator tree = trees.begin(); tree != trees.end(); tree++){
+            classType label = tree->predict(sample);
+            votes[label]++;
+        }
+        return std::max_element(votes.begin(), votes.end(),
+            [](const auto& a, const auto& b) { return a.second < b.second; })->first;
     }
 };
 #endif

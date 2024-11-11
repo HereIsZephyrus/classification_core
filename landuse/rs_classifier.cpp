@@ -1,6 +1,10 @@
 #include <Eigen/Dense>
 #include <iostream>
 #include <fstream>
+#include <ctime>
+#include <cstdlib>
+#include <random>
+#include <algorithm>
 #include "rs_classifier.hpp"
 using namespace Eigen;
 template<>
@@ -242,9 +246,30 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
         }
 }
 void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
-
+    featureNum = dataset[0].getFeatures().size(); //select all
+    classNum = getClassNum();
+    weights.resize(featureNum);
+    srand(time(0));
+    for (int i = 0; i < featureNum; ++i)
+        weights[i] = ((double)rand() / RAND_MAX) * 2 - 1;
+    for (int epoch = 0; epoch < 10000; ++epoch)
+        for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); ++it)
+            backward(it->getFeatures(), it->getLabel());
 }
 void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
-
+    for (int i = 0; i < nTrees; ++i) {
+        DecisionTree tree(maxDepth);
+        std::vector<vFloat> bootstrapX;
+        std::vector<int> bootstrapY;
+        std::default_random_engine generator;
+        std::uniform_int_distribution<int> distribution(0, dataset.size() - 1);
+        for (std::vector<land_Sample>::const_iterator data = dataset.begin(); data != dataset.end(); data++) {
+            int index = distribution(generator);
+            bootstrapX.push_back(data->getFeatures());
+            bootstrapY.push_back(data->getLabel());
+        }
+        tree.fit(bootstrapX, bootstrapY);
+        trees.push_back(tree);
+    }
 }
 }

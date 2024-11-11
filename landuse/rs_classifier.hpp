@@ -63,6 +63,7 @@ public:
 class land_RandomClassifier : public T_RandomForestClassifier<weilaicheng::LandCover>{
     size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
+    land_RandomClassifier() : T_RandomForestClassifier<weilaicheng::LandCover>(5,3){}
     void Train(const std::vector<land_Sample>& dataset) override;
 };
 }
