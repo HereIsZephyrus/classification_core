@@ -8,7 +8,7 @@ int LanduseMain(){
     using namespace weilaicheng;
     cv::Mat rawImage;
     unsigned int classesNum = LandCover::CoverType;
-   //generateFeatureImage(rawImage);
+    generateFeatureImage(rawImage);
     land_StaticPara* classParas = new land_StaticPara[classesNum];
     for (unsigned int classID = 0; classID < classesNum; classID++)
         classParas[classID].InitClassType(static_cast<LandCover>(classID));
@@ -18,23 +18,23 @@ int LanduseMain(){
     land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
     bayes->Train(dataset);
     std::vector<std::vector<LandCover>> result;
-    bayes->Classify(rawImage,result);
+    bayes->Classify(rawImage,result,LandCover::Edge);
     bayes->PrintPrecision();
     land_FisherClassifier* fisher = new land_FisherClassifier();
     fisher->Train(dataset);
-    fisher->Classify(rawImage,result);
+    fisher->Classify(rawImage,result,LandCover::Edge);
     fisher->PrintPrecision();
     land_SVMClassifier* svm = new land_SVMClassifier();
     svm->Train(dataset);
-    svm->Classify(rawImage,result);
+    svm->Classify(rawImage,result,LandCover::Edge);
     svm->PrintPrecision();
     land_BPClassifier* bp = new land_BPClassifier();
     bp->Train(dataset);
-    bp->Classify(rawImage,result);
+    bp->Classify(rawImage,result,LandCover::Edge);
     bp->PrintPrecision();
     land_RandomClassifier* randomforest = new land_RandomClassifier();
     randomforest->Train(dataset);
-    randomforest->Classify(rawImage,result);
+    randomforest->Classify(rawImage,result,LandCover::Edge);
     randomforest->PrintPrecision();
     return 0;
 }

@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include "../func.hpp"
 #include "../t_classifier.hpp"
+#include "image.hpp"
 namespace weilaicheng{
 constexpr float trainRatio = 0.8f;
 enum LandCover : unsigned int{
@@ -16,6 +17,7 @@ enum LandCover : unsigned int{
     Bareland,
     Imprevious,
     CoverType,
+    Edge,
     UNCLASSIFIED
 };
 enum Spectra : unsigned int{

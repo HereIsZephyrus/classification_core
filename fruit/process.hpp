@@ -33,7 +33,7 @@ bool BayesClassify(const cv::Mat& rawimage,T_BayesClassifier<paraForm,Classes>* 
             cv::Mat sample = rawimage(window);
             std::vector<cv::Mat> channels;
             vFloat data;
-            tcb::GenerateFeatureChannels(sample, channels);
+            fruit::GenerateFeatureChannels(sample, channels);
             tcb::CalcChannelMeanStds(channels, data);
             rowClasses.push_back(classifer->Predict(data));
         }

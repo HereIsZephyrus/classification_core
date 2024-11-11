@@ -72,10 +72,12 @@ public:
         std::cout << "Recall: " << recall << std::endl;
         std::cout << "F1: " << f1 << std::endl;
     }
-    void Classify(const cv::Mat& featureImage,std::vector<std::vector<classType>>& pixelClasses,int classifierKernelSize = defaultClassifierKernelSize){
+    void Classify(const cv::Mat& featureImage,std::vector<std::vector<classType>>& pixelClasses,classType edgeType,int classifierKernelSize = defaultClassifierKernelSize){
+        int classNum = getClassNum();
         using ClassMat = std::vector<std::vector<classType>>;
         using vClasses = std::vector<classType>;
         int rows = featureImage.rows, cols = featureImage.cols;
+        std::vector<std::vector<classType>> patchClasses;
         for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
             vClasses rowClasses;
             bool lastRowCheck = (r >= (rows - classifierKernelSize));
@@ -85,20 +87,21 @@ public:
                 cv::Mat sample = featureImage(window);
                 std::vector<cv::Mat> channels;
                 vFloat data;
-                rowClasses.push_back(classifer->Predict(data));
+                tcb::CalcChannelMeanStds(channels, data);
+                rowClasses.push_back(Predict(data));
             }
             patchClasses.push_back(rowClasses);
         }
-        ClassMat::const_iterator row = patchClasses.begin();
+        typename ClassMat::const_iterator row = patchClasses.begin();
         { //tackle the first line
             vClasses temprow;
-            for (vClasses::const_iterator col = row->begin(); col != row->end(); col++){
+            for (typename vClasses::const_iterator col = row->begin(); col != row->end(); col++){
                 if (col == row->begin()){
                     temprow.push_back(*col);
                     continue;
                 }
                 if ((*col) != (*(col-1)))//horizontalEdgeCheck
-                    temprow.push_back(Classes::Edge);
+                    temprow.push_back(edgeType);
                 else
                     temprow.push_back(*col);
                 if ((col+1) == row->end())// manually add the last element
@@ -106,16 +109,16 @@ public:
             }
             pixelClasses.push_back(temprow);
         }
-        vClasses::const_iterator lastRowBegin = row->begin();
+        typename vClasses::const_iterator lastRowBegin = row->begin();
         row++;
         for (; row != patchClasses.end(); row++){
             vClasses temprow;
-            vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
+            typename vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
             { //tackle the first col
                 if (*col == *diagonalCol)
                     temprow.push_back(*col);
                 else
-                    temprow.push_back(Classes::Edge);
+                    temprow.push_back(edgeType);
                 col++;
             }
             for (;col != row->end(); col++,diagonalCol++){
@@ -125,7 +128,7 @@ public:
                 if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
                     temprow.push_back(*col);
                 else
-                    temprow.push_back(Classes::Edge);
+                    temprow.push_back(edgeType);
                 if ((col+1) == row->end())// manually add the last element
                     temprow.push_back(*col);
             }
@@ -136,12 +139,12 @@ public:
         row--;
         {// manually add the last row
             vClasses temprow;
-            vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
+            typename vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
             { //tackle the first col
                 if (*col == *diagonalCol)
                     temprow.push_back(*col);
                 else
-                    temprow.push_back(Classes::Edge);
+                    temprow.push_back(edgeType);
                 col++;
             }
             for (;col != row->end(); col++,diagonalCol++){
@@ -151,13 +154,12 @@ public:
                 if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
                     temprow.push_back(*col);
                 else
-                    temprow.push_back(Classes::Edge);
+                    temprow.push_back(edgeType);
                 if ((col+1) == row->end())// manually add the last element
                     temprow.push_back(*col);
             }
             pixelClasses.push_back(temprow);
         }
-        return true;
     }
 };
 namespace bayes{
@@ -386,7 +388,7 @@ protected:
     vFloat weights;
     double learningRate;
     int maxIter;
-    constexpr double regularizationParam = 0.01;
+    static constexpr double regularizationParam = 0.01;
     double weightProduct(const std::vector<int>& vec) {
         double result = 0.0;
         for (size_t i = 0; i < weights.size(); i++) {
@@ -395,36 +397,6 @@ protected:
         return result;
     }
     class OVOSVM {
-    public:
-        OVOSVM(classType pos,classType neg,double learningRate = 0.8, int maxIter = 1000)
-        : learningRate(learningRate),maxIter(maxIter),positiveClass(pos),negetiveClass(neg) {}
-        void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
-            int sampleNum = X.size();
-            int featureNum = X[0].size();
-            // Initialize weights and bias
-            weights.assign(featureNum, 0.0);
-            bias = 0.0;
-            // Training the SVM
-            for (int iter = 0; iter < maxIter; ++iter) {
-                for (int i = 0; i < sampleNum; i++) {
-                    double linear_output = weighting(weights, X[i]) + bias;
-                    if (y[i] * linear_output < 1) {
-                        // Update weights and bias
-                        for (int j = 0; j < featureNum; ++j)
-                            weights[j] += learningRate * (y[i] * X[i][j] - 2 * regularizationParam * weights[j]);
-                        bias += learningRate * y[i];
-                    } else {
-                        // Regularization
-                        for (int j = 0; j < featureNum; ++j)
-                            weights[j] -= learningRate * 2 * regularizationParam * weights[j];
-                    }
-                }
-            }
-        }
-        bool predict(const vFloat& sample) const{return weighting(weights, sample) + bias;}
-        classType getPositiveClass() const{ return positiveClass; }
-        classType getNegetiveClass() const{ return negetiveClass; }
-    private:
         double learningRate;
         int maxIter;
         double bias;
@@ -438,17 +410,46 @@ protected:
             }
             return result;
         }
+    public:
+        OVOSVM(classType pos,classType neg,double learningRate = 0.8, int maxIter = 1000)
+        : learningRate(learningRate),maxIter(maxIter),positiveClass(pos),negetiveClass(neg) {}
+        void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
+            int sampleNum = X.size();
+            int featureNum = X[0].size();
+            // Initialize weights and bias
+            weights.assign(featureNum, 0.0);
+            bias = 0.0;
+            // Training the SVM
+            for (int iter = 0; iter < maxIter; ++iter) {
+                for (int i = 0; i < sampleNum; i++) {
+                    double linearOutput = weighting(X[i]) + bias;
+                    if (y[i] * linearOutput < 1) {
+                        // Update weights and bias
+                        for (int j = 0; j < featureNum; ++j)
+                            weights[j] += learningRate * (y[i] * X[i][j] - 2 * regularizationParam * weights[j]);
+                        bias += learningRate * y[i];
+                    } else {
+                        // Regularization
+                        for (int j = 0; j < featureNum; ++j)
+                            weights[j] -= learningRate * 2 * regularizationParam * weights[j];
+                    }
+                }
+            }
+        }
+        bool predict(const vFloat& sample){return weighting(sample) + bias;}
+        classType getPositiveClass() const{ return positiveClass; }
+        classType getNegetiveClass() const{ return negetiveClass; }
     };
-    std::vector<std::unique_ptr<OVOSVM>> classifiers;
+    std::vector<OVOSVM> classifiers;
 public:
     T_SVMClassifier(double rate = 0.8f, int iter = 1000):learningRate(rate),maxIter(iter) {this->outputPhotoName = "svm.png";}
     ~T_SVMClassifier(){}
     virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        std::vector<int> classVote[getClassNum()];
-        classVote.assign(getClassNum(),0);
-        for (std::vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
-            if (it->getNegtiveClass() > getClassNum()){
+        std::vector<unsigned int> classVote(this->getClassNum());
+        classVote.assign(this->getClassNum(),0);
+        for (typename std::vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
+            if (it->getNegetiveClass() > this->getClassNum()){
                 if (it->predict(x))
                     return it->getPositiveClass();
             }else{
@@ -460,7 +461,7 @@ public:
         }
         int maxVote = 0;
         classType resClass;
-        for (std::vector<int>::const_iterator it = classVote.begin(); it != classVote.end(); it++)
+        for (std::vector<unsigned int>::const_iterator it = classVote.begin(); it != classVote.end(); it++)
             if (*it > maxVote){
                 maxVote = *it;
                 resClass = static_cast<classType>(it - classVote.begin());
@@ -474,7 +475,7 @@ protected:
     int classNum;
     vFloat weights;
     double learningRate;
-    vFloat forward(const vFloat& inputs) {
+    float forward(const vFloat& inputs) {
         float output = 0;
         for (int i = 0; i < this->featureNum; i++)
             output += inputs[i] * weights[i];
@@ -483,11 +484,11 @@ protected:
     }
     void backward(const vFloat& inputs, classType targets) {
         float output = forward(inputs);
-        float errors = static_cast<float>(targets) - outputs;
+        float errors = static_cast<float>(targets) - output;
         for (int i = 0; i < this->featureNum; i++)
             weights[i] += learningRate * errors * inputs[i];
     }
-    double activation(double x) {return 1.0 / (1.0 + exp(-x));}
+    float activation(float x) {return 1.0 / (1.0 + exp(-x));}
 public:
     T_BPClassifier(double rate = 0.3):classNum(0),learningRate(rate) {this->outputPhotoName = "bp.png";}
     ~T_BPClassifier(){}
@@ -504,13 +505,13 @@ class T_RandomForestClassifier : public T_Classifier<classType>{
 protected:
     class DecisionTree {
     public:
-        DecisionTree(int maxDepth) : maxDepth(maxDepth) {}
-        void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
+        DecisionTree(classType unclassified,int maxDepth) : unclassified(unclassified),maxDepth(maxDepth) {}
+        void fit(const std::vector<vFloat>& X, const std::vector<classType>& y) {
             this->X = X;
             this->y = y;
             root = buildTree(0);
         }
-        classType predict(const vFloat& sample) {return traverseTree(root, sample);}
+        classType predict(const vFloat& sample){return traverseTree(root, sample);}
     private:
         struct Node {
             int featureIndex = -1;
@@ -521,6 +522,7 @@ protected:
         };
         Node* root;
         int maxDepth;
+        classType unclassified;
         std::vector<vFloat> X;
         std::vector<classType> y;
         Node* buildTree(int depth) {
@@ -534,7 +536,7 @@ protected:
             for (size_t featureIndex = 0; featureIndex < X[0].size(); featureIndex++){
                 // Collect potential thresholds
                 vFloat thresholds;
-                for (const std::vector<vFloat>::iterator sample = X.begin(); sample != X.end(); sample++)
+                for (std::vector<vFloat>::iterator sample = X.begin(); sample != X.end(); sample++)
                     thresholds.push_back((*sample)[featureIndex]);
                 std::sort(thresholds.begin(), thresholds.end());
                 thresholds.erase(std::unique(thresholds.begin(), thresholds.end()), thresholds.end());
@@ -567,7 +569,7 @@ protected:
                     rightX.push_back(X[i]);
                     rightY.push_back(y[i]);
                 }
-            Node* node = new Node{ bestFeature, bestThreshold, -1 };
+            Node* node = new Node{ bestFeature, bestThreshold, unclassified};
             node->left = buildTree(depth + 1);
             node->right = buildTree(depth + 1);
             return node;
@@ -612,8 +614,8 @@ public:
     virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
         std::map<classType, int> votes;
-        for (std::vector<DecisionTree>::const_iterator tree = trees.begin(); tree != trees.end(); tree++){
-            classType label = tree->predict(sample);
+        for (typename std::vector<DecisionTree>::iterator tree = trees.begin(); tree != trees.end(); tree++){
+            classType label = tree->predict(x);
             votes[label]++;
         }
         return std::max_element(votes.begin(), votes.end(),

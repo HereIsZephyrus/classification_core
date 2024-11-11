@@ -40,9 +40,10 @@ enum Demisions : unsigned int{
     angle,
     dim
 };
+bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels);
+typedef std::vector<Classes> vClasses;
 }
 using namespace fruit;
-typedef std::vector<Classes> vClasses;
 typedef T_StaticPara<Classes> StaticPara;
 typedef T_Sample<Classes> Sample;
 namespace bayes{

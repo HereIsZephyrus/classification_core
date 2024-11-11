@@ -106,21 +106,6 @@ bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry) {
     }
     return true;
 }
-bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels){
-    std::vector<cv::Mat> HSVchannels;
-    channels.clear();
-    cv::Mat hsvImage;
-    cv::cvtColor(image, hsvImage, cv::COLOR_BGR2HSV);
-    cv::split(hsvImage, HSVchannels);
-    channels = HSVchannels;
-    cv::Mat sobelx,sobely,magnitude,angle;
-    cv::Sobel(image, sobelx, CV_64F, 1, 0, 3);
-    cv::Sobel(image, sobely, CV_64F, 0, 1, 3);
-    cv::cartToPolar(sobelx, sobely, magnitude, angle, true);
-    //channels.push_back(magnitude);
-    channels.push_back(angle);
-    return true;
-}
 bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data){
     data.clear();
     for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){

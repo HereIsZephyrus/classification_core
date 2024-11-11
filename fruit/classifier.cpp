@@ -14,6 +14,21 @@ std::unordered_map<Classes,cv::Scalar> classifyColor = {
     {Classes::Edge,cv::Scalar(255,255,255)}, // white
     {Classes::Unknown,cv::Scalar(211,211,211)}// gray
 };
+bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels){
+    std::vector<cv::Mat> HSVchannels;
+    channels.clear();
+    cv::Mat hsvImage;
+    cv::cvtColor(image, hsvImage, cv::COLOR_BGR2HSV);
+    cv::split(hsvImage, HSVchannels);
+    channels = HSVchannels;
+    cv::Mat sobelx,sobely,magnitude,angle;
+    cv::Sobel(image, sobelx, CV_64F, 1, 0, 3);
+    cv::Sobel(image, sobely, CV_64F, 0, 1, 3);
+    cv::cartToPolar(sobelx, sobely, magnitude, angle, true);
+    //channels.push_back(magnitude);
+    channels.push_back(angle);
+    return true;
+}
 }
 using namespace fruit;
 template<>
@@ -32,7 +47,7 @@ void StaticPara::Sampling(const std::string& entryPath){
         return;
     }
     std::vector<cv::Mat> channels;
-    tcb::GenerateFeatureChannels(patch,channels);
+    fruit::GenerateFeatureChannels(patch,channels);
     const unsigned int patchRows = patch.rows, patchCols = patch.cols;
     for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
@@ -225,7 +240,7 @@ bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vec
             cv::Mat sample = rawimage(window);
             std::vector<cv::Mat> channels;
             vFloat data;
-            tcb::GenerateFeatureChannels(sample, channels);
+            fruit::GenerateFeatureChannels(sample, channels);
             tcb::CalcChannelMeanStds(channels, data);
             rowClasses.push_back(classifer->Predict(data));
         }

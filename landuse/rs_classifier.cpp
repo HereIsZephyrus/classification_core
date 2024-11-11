@@ -25,7 +25,7 @@ void land_StaticPara::Sampling(const std::string& entryPath){
         return;
     }
     std::vector<cv::Mat> channels;
-    tcb::GenerateFeatureChannels(patch,channels);
+    weilaicheng::GenerateFeatureChannels(patch,channels);
     const unsigned int patchRows = patch.rows, patchCols = patch.cols;
     for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize/2){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize/2){
@@ -53,6 +53,8 @@ std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
     {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone,
     {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
+    {LandCover::Edge,cv::Scalar(255,255,255)}, // white
+    {LandCover::UNCLASSIFIED,cv::Scalar(255,255,255)}, // black
 };
 void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset,const float* classProbs){
     featureNum = dataset[0].getFeatures().size(); //select all
@@ -226,9 +228,9 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
         }
         classCount[classID].push_back(it->getFeatures());
     }
-    std::unique_ptr<OVOSVM> waterClassifier = std::make_unique<OVOSVM>(LandCover::Water,LandCover::UNCLASSIFIED);
-    waterClassifier->fit(waterPN,waterLabel);
-    classifiers.push_back(std::move(waterClassifier));
+    OVOSVM waterClassifier = OVOSVM(LandCover::Water,LandCover::UNCLASSIFIED);
+    waterClassifier.fit(waterPN,waterLabel);
+    classifiers.push_back(waterClassifier);
     unsigned int waterID = static_cast<unsigned int>(LandCover::Water);
     for (unsigned int i = 0; i < classNum; i++)
         for (unsigned int j = 0; j < classNum; j++){
@@ -240,9 +242,9 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             classLabelj.assign(classCount[j].size(),1);
             classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
             classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
-            std::unique_ptr<OVOSVM> classifier = std::make_unique<OVOSVM>(static_cast<LandCover>(i),static_cast<LandCover>(j));
-            classifier->fit(classPN,classLabeli);
-            classifiers.push_back(std::move(classifier));
+            OVOSVM classifier = OVOSVM(static_cast<LandCover>(i),static_cast<LandCover>(j));
+            classifier.fit(classPN,classLabeli);
+            classifiers.push_back(classifier);
         }
 }
 void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
@@ -258,9 +260,9 @@ void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
 }
 void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
     for (int i = 0; i < nTrees; ++i) {
-        DecisionTree tree(maxDepth);
+        DecisionTree tree(LandCover::UNCLASSIFIED,maxDepth);
         std::vector<vFloat> bootstrapX;
-        std::vector<int> bootstrapY;
+        std::vector<LandCover> bootstrapY;
         std::default_random_engine generator;
         std::uniform_int_distribution<int> distribution(0, dataset.size() - 1);
         for (std::vector<land_Sample>::const_iterator data = dataset.begin(); data != dataset.end(); data++) {

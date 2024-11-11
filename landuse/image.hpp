@@ -5,5 +5,8 @@
 #include <iostream>
 #include <cstring>
 #include <string>
+namespace weilaicheng{
 void generateFeatureImage(cv::Mat& rawImage);
+bool GenerateFeatureChannels(const cv::Mat &image,std::vector<cv::Mat> &channels);
+}
 #endif
