@@ -1,4 +1,5 @@
 #include "fruit.hpp"
+using namespace fruit;
 int FruitMain(){
     std::cout << "Which method do you want to use?" << std::endl;
     std::cout << "1. Histo Method" << std::endl;

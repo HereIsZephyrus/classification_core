@@ -7,7 +7,7 @@
 #include <Eigen/Dense>
 #include "func.hpp"
 
-constexpr int classifierKernelSize = 9;
+constexpr int defaultClassifierKernelSize = 9;
 template <typename classType>
 class T_StaticPara{
     std::vector<vFloat> avg,var;
@@ -70,6 +70,93 @@ public:
         std::cout << "Precision: " << precision << std::endl;
         std::cout << "Recall: " << recall << std::endl;
         std::cout << "F1: " << f1 << std::endl;
+    }
+    void Classify(const cv::Mat& featureImage,std::vector<std::vector<classType>>& pixelClasses,int classifierKernelSize = defaultClassifierKernelSize){
+        using ClassMat = std::vector<std::vector<classType>>;
+        using vClasses = std::vector<classType>;
+        int rows = featureImage.rows, cols = featureImage.cols;
+        for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
+            vClasses rowClasses;
+            bool lastRowCheck = (r >= (rows - classifierKernelSize));
+            for (int c = classifierKernelSize/2; c <= cols - classifierKernelSize; c+=classifierKernelSize/2){
+                bool lastColCheck = (c >= (cols - classifierKernelSize));
+                cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
+                cv::Mat sample = featureImage(window);
+                std::vector<cv::Mat> channels;
+                vFloat data;
+                rowClasses.push_back(classifer->Predict(data));
+            }
+            patchClasses.push_back(rowClasses);
+        }
+        ClassMat::const_iterator row = patchClasses.begin();
+        { //tackle the first line
+            vClasses temprow;
+            for (vClasses::const_iterator col = row->begin(); col != row->end(); col++){
+                if (col == row->begin()){
+                    temprow.push_back(*col);
+                    continue;
+                }
+                if ((*col) != (*(col-1)))//horizontalEdgeCheck
+                    temprow.push_back(Classes::Edge);
+                else
+                    temprow.push_back(*col);
+                if ((col+1) == row->end())// manually add the last element
+                    temprow.push_back(*col);
+            }
+            pixelClasses.push_back(temprow);
+        }
+        vClasses::const_iterator lastRowBegin = row->begin();
+        row++;
+        for (; row != patchClasses.end(); row++){
+            vClasses temprow;
+            vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
+            { //tackle the first col
+                if (*col == *diagonalCol)
+                    temprow.push_back(*col);
+                else
+                    temprow.push_back(Classes::Edge);
+                col++;
+            }
+            for (;col != row->end(); col++,diagonalCol++){
+                bool horizontalEdgeCheck = (*col) == (*(col-1));
+                bool verticalEdgeCheck = (*col) == (*(diagonalCol+1));
+                bool diagonalEdgeCheck = (*col) == (*(diagonalCol));
+                if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
+                    temprow.push_back(*col);
+                else
+                    temprow.push_back(Classes::Edge);
+                if ((col+1) == row->end())// manually add the last element
+                    temprow.push_back(*col);
+            }
+            pixelClasses.push_back(temprow);
+            if (row+1 != patchClasses.end())//pause on the last row
+                lastRowBegin = row->begin();
+        }
+        row--;
+        {// manually add the last row
+            vClasses temprow;
+            vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
+            { //tackle the first col
+                if (*col == *diagonalCol)
+                    temprow.push_back(*col);
+                else
+                    temprow.push_back(Classes::Edge);
+                col++;
+            }
+            for (;col != row->end(); col++,diagonalCol++){
+                bool horizontalEdgeCheck = (*col) == (*(col-1));
+                bool verticalEdgeCheck = (*col) == (*(diagonalCol+1));
+                bool diagonalEdgeCheck = (*col) == (*(diagonalCol));
+                if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
+                    temprow.push_back(*col);
+                else
+                    temprow.push_back(Classes::Edge);
+                if ((col+1) == row->end())// manually add the last element
+                    temprow.push_back(*col);
+            }
+            pixelClasses.push_back(temprow);
+        }
+        return true;
     }
 };
 namespace bayes{

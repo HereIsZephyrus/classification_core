@@ -9,6 +9,7 @@
 #include "../func.hpp"
 #include "../t_classifier.hpp"
 namespace weilaicheng{
+constexpr float trainRatio = 0.8f;
 enum LandCover : unsigned int{
     Water,
     Greenland,
@@ -42,32 +43,26 @@ class land_NaiveBayesClassifier : public T_NaiveBayesClassifier<weilaicheng::Lan
     void Train(const std::vector<land_Sample>& dataset,const float* classProbs) override;
     bool CalcClassProb(float* prob);
 public:
-    void Classify(const cv::Mat& rawImage);
-    double CalculateClassProbability(unsigned int classID,const vFloat& x) override;
     void Train(const std::vector<land_Sample>& dataset);
 };
 class land_FisherClassifier : public T_FisherClassifier<weilaicheng::LandCover>{
     size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
-    void Classify(const cv::Mat& rawImage);
     void Train(const std::vector<land_Sample>& dataset) override;
 };
 class land_SVMClassifier : public T_SVMClassifier<weilaicheng::LandCover>{
     size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
-    void Classify(const cv::Mat& rawImage);
     void Train(const std::vector<land_Sample>& dataset) override;
 };
 class land_BPClassifier : public T_BPClassifier<weilaicheng::LandCover>{
     size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
-    void Classify(const cv::Mat& rawImage);
     void Train(const std::vector<land_Sample>& dataset) override;
 };
 class land_RandomClassifier : public T_RandomForestClassifier<weilaicheng::LandCover>{
     size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
-    void Classify(const cv::Mat& rawImage);
     void Train(const std::vector<land_Sample>& dataset) override;
 };
 }

@@ -1,5 +1,6 @@
 #include "classifier.hpp"
 using namespace Eigen;
+namespace fruit{
 std::string classFolderNames[Classes::counter] = 
 {"desk","apple","blackplum","dongzao","grape","peach","yellowpeach"};
 std::unordered_map<Classes,cv::Scalar> classifyColor = {
@@ -13,6 +14,8 @@ std::unordered_map<Classes,cv::Scalar> classifyColor = {
     {Classes::Edge,cv::Scalar(255,255,255)}, // white
     {Classes::Unknown,cv::Scalar(211,211,211)}// gray
 };
+}
+using namespace fruit;
 template<>
 void StaticPara::InitClassType(Classes ID){
     recordNum = 0;

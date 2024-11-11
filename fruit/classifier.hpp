@@ -2,6 +2,8 @@
 #define CLASSFIERHPP
 #include "../func.hpp"
 #include "../t_classifier.hpp"
+namespace fruit{
+constexpr int classifierKernelSize = 9;
 struct Border{
     int label;
     int count;
@@ -38,6 +40,8 @@ enum Demisions : unsigned int{
     angle,
     dim
 };
+}
+using namespace fruit;
 typedef std::vector<Classes> vClasses;
 typedef T_StaticPara<Classes> StaticPara;
 typedef T_Sample<Classes> Sample;

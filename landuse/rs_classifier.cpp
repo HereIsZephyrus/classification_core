@@ -13,6 +13,8 @@ void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
 }
 template<>
 void land_StaticPara::Sampling(const std::string& entryPath){
+    const int classifierKernelSize = defaultClassifierKernelSize;
+    using namespace weilaicheng;
     cv::Mat patch = cv::imread(entryPath);
     if (patch.empty()){
         std::cerr << "Image not found!" << std::endl;
@@ -21,8 +23,8 @@ void land_StaticPara::Sampling(const std::string& entryPath){
     std::vector<cv::Mat> channels;
     tcb::GenerateFeatureChannels(patch,channels);
     const unsigned int patchRows = patch.rows, patchCols = patch.cols;
-    for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
-        for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
+    for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize/2){
+        for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize/2){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
             vFloat means, vars;
             for (unsigned int i = 0; i < weilaicheng::Spectra::SpectralNum; i++){
@@ -48,17 +50,6 @@ std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone,
     {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
 };
-double land_NaiveBayesClassifier::CalculateClassProbability(unsigned int classID,const vFloat& x){
-    double res = para[static_cast<weilaicheng::LandCover>(classID)].w;
-    for (unsigned int d = 0; d < featureNum; d++){
-        float pd = x[d] - para[static_cast<weilaicheng::LandCover>(classID)].mu[d];
-        float vars = para[static_cast<weilaicheng::LandCover>(classID)].sigma[d] * para[static_cast<weilaicheng::LandCover>(classID)].sigma[d];
-        double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
-        double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
-        res *= normalize * exponent;
-    }
-    return res;
-}
 void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset,const float* classProbs){
     featureNum = dataset[0].getFeatures().size(); //select all
     para.clear();
@@ -219,20 +210,5 @@ void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
 }
 void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
 
-}
-void land_NaiveBayesClassifier::Classify(const cv::Mat& rawImage){
-
-}
-void land_FisherClassifier::Classify(const cv::Mat& rawImage){
-    
-}
-void land_SVMClassifier::Classify(const cv::Mat& rawImage){
-    
-}
-void land_BPClassifier::Classify(const cv::Mat& rawImage){
-    
-}
-void land_RandomClassifier::Classify(const cv::Mat& rawImage){
-    
 }
 }
