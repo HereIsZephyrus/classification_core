@@ -19,16 +19,13 @@ template<>
 void land_StaticPara::Sampling(const std::string& entryPath){
     const int classifierKernelSize = defaultClassifierKernelSize;
     using namespace weilaicheng;
-    cv::Mat patch = cv::imread(entryPath);
-    if (patch.empty()){
-        std::cerr << "Image not found!" << std::endl;
-        return;
-    }
     std::vector<cv::Mat> channels;
-    weilaicheng::GenerateFeatureChannels(patch,channels);
-    const unsigned int patchRows = patch.rows, patchCols = patch.cols;
-    for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize/2){
-        for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize/2){
+    cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);
+    std::cout << "Number of channels: " << channels.size() << std::endl;
+    weilaicheng::GenerateFeatureChannels(channels);
+    const unsigned int patchRows = channels[0].rows, patchCols = channels[0].cols;
+    for (unsigned int left = 0; left < patchCols - classifierKernelSize + 1; left+=classifierKernelSize/2){
+        for (unsigned int top = 0; top < patchRows - classifierKernelSize + 1; top+=classifierKernelSize/2){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
             vFloat means, vars;
             for (unsigned int i = 0; i < weilaicheng::Spectra::SpectralNum; i++){
@@ -273,5 +270,25 @@ void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
         tree.fit(bootstrapX, bootstrapY);
         trees.push_back(tree);
     }
+}
+bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const std::vector<std::vector<LandCover>>& pixelClasses){
+    using ClassMat = std::vector<std::vector<LandCover>>;
+    using vClasses = std::vector<LandCover>;
+    const int classifierKernelSize = defaultClassifierKernelSize;
+    classified = cv::Mat::zeros(rawimage.rows, rawimage.cols, CV_8UC3);
+    classified.setTo(classifyColor[LandCover::UNCLASSIFIED]);
+    int y = 0;
+    for (ClassMat::const_iterator row = pixelClasses.begin(); row != pixelClasses.end(); row++,y+=classifierKernelSize/2){
+        int x = 0;
+        for (vClasses::const_iterator col = row->begin(); col != row->end(); col++,x+=classifierKernelSize/2){
+            if (x >= rawimage.cols - classifierKernelSize/2)
+                break;
+            cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
+            classified(window) = classifyColor[*col];
+        }
+        if (y >= rawimage.rows - classifierKernelSize/2)
+            break;
+    }
+    return true;
 }
 }

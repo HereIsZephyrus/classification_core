@@ -15,27 +15,61 @@ int LanduseMain(){
     std::vector<land_Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
-    land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
-    bayes->Train(dataset);
-    std::vector<std::vector<LandCover>> result;
-    bayes->Classify(rawImage,result,LandCover::Edge);
-    bayes->PrintPrecision();
-    land_FisherClassifier* fisher = new land_FisherClassifier();
-    fisher->Train(dataset);
-    fisher->Classify(rawImage,result,LandCover::Edge);
-    fisher->PrintPrecision();
-    land_SVMClassifier* svm = new land_SVMClassifier();
-    svm->Train(dataset);
-    svm->Classify(rawImage,result,LandCover::Edge);
-    svm->PrintPrecision();
-    land_BPClassifier* bp = new land_BPClassifier();
-    bp->Train(dataset);
-    bp->Classify(rawImage,result,LandCover::Edge);
-    bp->PrintPrecision();
-    land_RandomClassifier* randomforest = new land_RandomClassifier();
-    randomforest->Train(dataset);
-    randomforest->Classify(rawImage,result,LandCover::Edge);
-    randomforest->PrintPrecision();
+    {
+        land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
+        bayes->Train(dataset);
+        std::vector<std::vector<LandCover>> pixelClasses;
+        bayes->Classify(rawImage,pixelClasses,LandCover::Edge);
+        cv::Mat classified;
+        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        cv::imshow("Naive Bayes", classified);
+        bayes->PrintPrecision();
+        cv::waitKey(0);
+    }
+    {
+        land_FisherClassifier* fisher = new land_FisherClassifier();
+        fisher->Train(dataset);
+        std::vector<std::vector<LandCover>> pixelClasses;
+        fisher->Classify(rawImage,pixelClasses,LandCover::Edge);
+        cv::Mat classified;
+        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        cv::imshow("Fisher", classified);
+        fisher->PrintPrecision();
+        cv::waitKey(0);
+    }
+    {
+        land_SVMClassifier* svm = new land_SVMClassifier();
+        svm->Train(dataset);
+        std::vector<std::vector<LandCover>> pixelClasses;
+        svm->Classify(rawImage,pixelClasses,LandCover::Edge);
+        cv::Mat classified;
+        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        cv::imshow("SVM", classified);
+        svm->PrintPrecision();
+        cv::waitKey(0);
+    }
+    {
+        land_BPClassifier* bp = new land_BPClassifier();
+        bp->Train(dataset);
+        std::vector<std::vector<LandCover>> pixelClasses;
+        bp->Classify(rawImage,pixelClasses,LandCover::Edge);
+        cv::Mat classified;
+        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        cv::imshow("BP", classified);
+        bp->PrintPrecision();
+        cv::waitKey(0);
+    }
+    {
+        land_RandomClassifier* randomforest = new land_RandomClassifier();
+        randomforest->Train(dataset);
+        std::vector<std::vector<LandCover>> pixelClasses;
+        randomforest->Classify(rawImage,pixelClasses,LandCover::Edge);
+        cv::Mat classified;
+        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        cv::imshow("Random Forest", classified);
+        randomforest->PrintPrecision();
+        cv::waitKey(0);
+    }
     return 0;
 }
 int SeriesMain(){
@@ -52,6 +86,10 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
         if (!fs::exists(classFolderPath))
             continue;
         for (const auto& entry : fs::recursive_directory_iterator(classFolderPath)) {
+            const std::string suffix = ".tif";
+            size_t pos = std::string(entry.path()).rfind(suffix);
+            if (pos == std::string::npos || pos == std::string(entry.path()).length() - suffix.length())
+                continue;
             classParas[classID].Sampling(entry.path());
         }
     }
