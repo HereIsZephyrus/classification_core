@@ -183,7 +183,7 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
     return;
 }
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
-    featureNum = dataset[0].getFeatures().size(); //select all
+    this->featureNum = dataset[0].getFeatures().size(); //select all
     unsigned int classNum = getClassNum();
     std::vector<vFloat> waterPN,classCount[classNum];
     std::vector<int> waterLabel;
@@ -198,16 +198,16 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
                 waterPN.push_back(it->getFeatures());
                 waterLabel.push_back(-1);
             }
-            selectTag = (selectTag+1)%3;
+            selectTag = (selectTag+1)%5;
         }
         classCount[classID].push_back(it->getFeatures());
     }
     OVOSVM waterClassifier = OVOSVM(LandCover::Water,LandCover::UNCLASSIFIED);
-    waterClassifier.fit(waterPN,waterLabel);
+    waterClassifier.train(waterPN,waterLabel);
     classifiers.push_back(waterClassifier);
     unsigned int waterID = static_cast<unsigned int>(LandCover::Water);
     for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < classNum; j++){
+        for (unsigned int j = i+1; j < classNum; j++){
             if (i == waterID || j == waterID)
                 continue;
             std::vector<vFloat> classPN = classCount[i];
@@ -217,7 +217,7 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
             classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
             OVOSVM classifier = OVOSVM(static_cast<LandCover>(i),static_cast<LandCover>(j));
-            classifier.fit(classPN,classLabeli);
+            classifier.train(classPN,classLabeli);
             classifiers.push_back(classifier);
         }
 }
@@ -244,7 +244,7 @@ void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
             bootstrapX.push_back(data->getFeatures());
             bootstrapY.push_back(data->getLabel());
         }
-        tree.fit(bootstrapX, bootstrapY);
+        tree.train(bootstrapX, bootstrapY);
         trees.push_back(tree);
     }
 }

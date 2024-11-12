@@ -10,9 +10,10 @@
 #include "func.hpp"
 
 constexpr int defaultClassifierKernelSize = 9;
+using std::vector;
 template <typename classType>
 class T_StaticPara{
-    std::vector<vFloat> avg,var;
+    vector<vFloat> avg,var;
     classType classID;
     unsigned int recordNum;
 public:
@@ -23,8 +24,8 @@ public:
     void Sampling(const std::string& entryPath);
     unsigned int getRecordsNum() const{return recordNum;}
     classType getClassID() const{return classID;}
-    const std::vector<vFloat>& getAvg() const{return avg;}
-    const std::vector<vFloat>& getVar() const{return var;}
+    const vector<vFloat>& getAvg() const{return avg;}
+    const vector<vFloat>& getVar() const{return var;}
 };
 template <typename classType>
 class T_Sample{
@@ -55,11 +56,11 @@ protected:
     std::string outputPhotoName;
     float precision,recall,f1;
 public:
-    using SampleList = std::vector<T_Sample<classType>>;
+    using SampleList = vector<T_Sample<classType>>;
     virtual classType Predict(const vFloat& x) = 0;
     virtual size_t getClassNum() const{return 0;}
     const std::string& printPhoto() const{return outputPhotoName;}
-    void Examine(const std::vector<T_Sample<classType>>& samples){
+    void Examine(const vector<T_Sample<classType>>& samples){
         size_t TP = 0, FP = 0,FN = 0,testSampleNum = 0;
         for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())
@@ -79,12 +80,12 @@ public:
         std::cout << "Recall: " << recall << std::endl;
         std::cout << "F1: " << f1 << std::endl;
     }
-    void Classify(const cv::Mat& featureImage,std::vector<std::vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize = defaultClassifierKernelSize){
+    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize = defaultClassifierKernelSize){
         int classNum = getClassNum();
-        using ClassMat = std::vector<std::vector<classType>>;
-        using vClasses = std::vector<classType>;
+        using ClassMat = vector<vector<classType>>;
+        using vClasses = vector<classType>;
         int rows = featureImage.rows, cols = featureImage.cols;
-        std::vector<std::vector<classType>> patchClasses;
+        vector<vector<classType>> patchClasses;
         for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
             vClasses rowClasses;
             bool lastRowCheck = (r >= (rows - classifierKernelSize));
@@ -92,7 +93,7 @@ public:
                 bool lastColCheck = (c >= (cols - classifierKernelSize));
                 cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
                 cv::Mat sample = featureImage(window);
-                std::vector<cv::Mat> channels;
+                vector<cv::Mat> channels;
                 cv::split(sample, channels);
                 vFloat data;
                 tcb::CalcChannelMeanStds(channels, data);
@@ -175,18 +176,18 @@ public:
 namespace bayes{
 struct BasicParaList{
     float w;
-    std::vector<double> mu,sigma;
+    vector<double> mu,sigma;
 };
 struct convParaList{
     float w;
-    std::vector<double> mu;
+    vector<double> mu;
     fMat convMat;
     fMat invMat;
 };
 template <class paraForm,typename classType>
 class T_BayesClassifier : public T_Classifier<classType>{
 protected:
-    std::vector<paraForm> para;
+    vector<paraForm> para;
     virtual double CalculateClassProbability(unsigned int classID,const vFloat& x) = 0;
 public:
     T_BayesClassifier(){}
@@ -204,7 +205,7 @@ public:
         }
         return bestClass;
     }
-    virtual void Train(const std::vector<T_Sample<classType>>& samples,const float* classProbs) = 0;
+    virtual void Train(const vector<T_Sample<classType>>& samples,const float* classProbs) = 0;
 };
 template <typename classType>
 class T_NaiveBayesClassifier : public T_BayesClassifier<BasicParaList,classType>{
@@ -246,7 +247,7 @@ protected:
         }
         return res;
     }
-    void CalcConvMat(fMat convMat,fMat invMat,const std::vector<vFloat>& bucket){
+    void CalcConvMat(fMat convMat,fMat invMat,const vector<vFloat>& bucket){
         for (size_t i = 0; i < this->featureNum; i++){
             convMat[i][i] = CalcConv(bucket[i],bucket[i]) + lambda;
             for (size_t j = i+1; j < this->featureNum; j++){
@@ -302,7 +303,7 @@ protected:
 public:
     T_NonNaiveBayesClassifier(){this->outputPhotoName = "nonNaiveBayes.png";}
     ~T_NonNaiveBayesClassifier(){
-        for (std::vector<convParaList>::const_iterator it = this->para.begin(); it != this->para.end(); it++){
+        for (vector<convParaList>::const_iterator it = this->para.begin(); it != this->para.end(); it++){
             if(it->convMat != nullptr){
                 for(size_t i = 0;i < this->featureNum;i++)
                     delete[] it->convMat[i];
@@ -322,16 +323,16 @@ template <class classType>
 class T_FisherClassifier : public T_Classifier<classType>{
 protected:
     using SampleType = T_Sample<classType>;
-    std::vector<vFloat> mu;
+    vector<vFloat> mu;
     vFloat signal,projMat;
-    void CalcSwSb(float** Sw,float** Sb,const std::vector<SampleType>& samples){
-        using SampleList = std::vector<T_Sample<classType>>;
+    void CalcSwSb(float** Sw,float** Sb,const vector<SampleType>& samples){
+        using SampleList = vector<T_Sample<classType>>;
         unsigned int classNum = this->getClassNum();
         vFloat featureAvg(this->featureNum, 0.0f);
         vFloat classifiedFeaturesAvg[classNum];
         for (int i = 0; i < classNum; i++)
             classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
-        std::vector<size_t> classRecordNum(classNum,0);
+        vector<size_t> classRecordNum(classNum,0);
         for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             unsigned int label = static_cast<unsigned int>(it->getLabel());
             const vFloat& sampleFeature = it->getFeatures();
@@ -370,7 +371,7 @@ protected:
 public:
     T_FisherClassifier() {this->outputPhotoName = "fisher.png";}
     ~T_FisherClassifier(){}
-    virtual void Train(const std::vector<SampleType>& samples) = 0;
+    virtual void Train(const vector<SampleType>& samples) = 0;
 
     classType Predict(const vFloat& x){
         classType resClass;
@@ -392,71 +393,85 @@ public:
 template <class classType>
 class T_SVMClassifier : public T_Classifier<classType>{
 protected:
-    double bias;
-    vFloat weights;
-    double learningRate;
-    int maxIter;
-    static constexpr double regularizationParam = 0.01;
-    double weightProduct(const std::vector<int>& vec) {
-        double result = 0.0;
-        for (size_t i = 0; i < weights.size(); i++) {
-            result += weights[i] * vec[i];
-        }
-        return result;
-    }
     class OVOSVM {
-        double learningRate;
+        double learningRate,bias,limit;
         int maxIter;
-        double bias;
+        vector<vFloat> supportVectors;
+        vector<int> supportLabels;
+        vector<double> supportAlpha;
         vFloat weights;
-        double regularizationParam = 0.01;
         classType positiveClass,negetiveClass;
-        double weighting(const vFloat& vec) {
+        static constexpr double eps = 1e-6;
+        double dot(const vFloat& x,const vFloat& y) {
             double result = 0.0;
-            for (size_t i = 0; i < vec.size(); i++) {
-                result += weights[i] * vec[i];
-            }
+            for (size_t i = 0; i < x.size(); i++)
+                result += x[i] * y[i];
             return result;
         }
     public:
-        OVOSVM(classType pos,classType neg,double learningRate = 0.5, int maxIter = 1000)
+        OVOSVM(classType pos,classType neg,double limit = 0.01,double learningRate = 0.001, int maxIter = 1000)
         : learningRate(learningRate),maxIter(maxIter),positiveClass(pos),negetiveClass(neg) {}
-        void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
-            int sampleNum = X.size();
-            int featureNum = X[0].size();
-            // Initialize weights and bias
+        void train(const vector<vFloat>& X, const vector<int>& y) {
+            int sampleNum = X.size(),featureNum = X[0].size();
             weights.assign(featureNum, 0.0);
-            bias = 0.0;
+            double beta = 1.0;
+            bool notMargined = true;
+            vFloat alpha;
+            alpha.assign(sampleNum, 0.0);
             // Training the SVM
             for (int iter = 0; iter < maxIter; ++iter) {
+                notMargined = false;
+                double error = 0;
                 for (int i = 0; i < sampleNum; i++) {
-                    double linearOutput = weighting(X[i]) + bias;
-                    if (y[i] * linearOutput < 1) {
-                        // Update weights and bias
-                        for (int j = 0; j < featureNum; ++j)
-                            weights[j] += learningRate * (y[i] * X[i][j] - 2 * regularizationParam * weights[j]);
-                        bias += learningRate * y[i];
-                    } else {
-                        // Regularization
-                        for (int j = 0; j < featureNum; ++j)
-                            weights[j] -= learningRate * 2 * regularizationParam * weights[j];
+                    double item1 = 0.0;
+                    for (int j = 0; j < sampleNum; j++)
+                        item1 += alpha[j] * (double)y[i] * (double)y[j] * dot(X[i], X[j]);
+                    double item2 = 0.0;
+                    for (int j = 0; j < sampleNum; j++)
+                        item2 += alpha[j] * (double)y[i] * (double)y[j];
+                    double delta = 1.0 - item1 - beta * item2;
+                    alpha[i] += learningRate * delta;
+                    alpha[i] = std::max(alpha[i],0.0f);
+                    if (std::abs(delta) > limit){
+                        notMargined = true;
+                        error += std::abs(delta) - limit;
                     }
                 }
+                double item3 = 0.0;
+                for (int i = 0; i < sampleNum; i++)
+                    item3 += alpha[i] * (double)y[i];
+                beta += item3 * item3 / 2.0;
+                if (!notMargined)   break;
             }
+            for (int i = 0; i < sampleNum; i++){
+                if (alpha[i] > eps){
+                    supportVectors.push_back(X[i]);
+                    supportLabels.push_back(y[i]);
+                    supportAlpha.push_back(alpha[i]);
+                }
+            }
+            weights.assign(featureNum,0.0);
+            for (int j = 0; j < featureNum; j++)
+                for (size_t i = 0; i < supportVectors.size(); i++)
+                    weights[j] += supportAlpha[i] * supportLabels[i] * supportVectors[i][j];
+            bias = 0.0;
+            for (size_t i = 0; i < supportVectors.size(); i++)
+                bias += supportLabels[i] - dot(weights, supportVectors[i]);
+            bias /= static_cast<double>(supportVectors.size());
         }
-        bool predict(const vFloat& sample){return weighting(sample) + bias;}
+        bool predict(const vFloat& sample){return (dot(sample,weights) + bias)>0;}
         classType getPositiveClass() const{ return positiveClass; }
         classType getNegetiveClass() const{ return negetiveClass; }
     };
-    std::vector<OVOSVM> classifiers;
+    vector<OVOSVM> classifiers;
 public:
-    T_SVMClassifier(double rate = 0.8f, int iter = 1000):learningRate(rate),maxIter(iter) {this->outputPhotoName = "svm.png";}
+    T_SVMClassifier(){this->outputPhotoName = "svm.png";}
     ~T_SVMClassifier(){}
-    virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
+    virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        std::vector<unsigned int> classVote(this->getClassNum());
+        vector<unsigned int> classVote(this->getClassNum());
         classVote.assign(this->getClassNum(),0);
-        for (typename std::vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
+        for (typename vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
             if (it->getNegetiveClass() > this->getClassNum()){
                 if (it->predict(x))
                     return it->getPositiveClass();
@@ -469,7 +484,7 @@ public:
         }
         int maxVote = 0;
         classType resClass;
-        for (std::vector<unsigned int>::const_iterator it = classVote.begin(); it != classVote.end(); it++)
+        for (vector<unsigned int>::const_iterator it = classVote.begin(); it != classVote.end(); it++)
             if (*it > maxVote){
                 maxVote = *it;
                 resClass = static_cast<classType>(it - classVote.begin());
@@ -500,7 +515,7 @@ protected:
 public:
     T_BPClassifier(double rate = 0.3):classNum(0),learningRate(rate) {this->outputPhotoName = "bp.png";}
     ~T_BPClassifier(){}
-    virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
+    virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
         float res = 0;
         for (int i = 0; i < this->featureNum; i++)
@@ -514,7 +529,7 @@ protected:
     class DecisionTree {
     public:
         DecisionTree(classType unclassified,int maxDepth) : unclassified(unclassified),maxDepth(maxDepth) {}
-        void fit(const std::vector<vFloat>& X, const std::vector<classType>& y) {
+        void train(const vector<vFloat>& X, const vector<classType>& y) {
             this->X = X;
             this->y = y;
             root = buildTree(0);
@@ -531,8 +546,8 @@ protected:
         Node* root;
         int maxDepth;
         classType unclassified;
-        std::vector<vFloat> X;
-        std::vector<classType> y;
+        vector<vFloat> X;
+        vector<classType> y;
         Node* buildTree(int depth) {
             // Base case: if all labels are the same or max depth reached
             if (depth >= maxDepth || std::all_of(y.begin(), y.end(), [&](classType label) { return label == y[0]; }))
@@ -544,12 +559,12 @@ protected:
             for (size_t featureIndex = 0; featureIndex < X[0].size(); featureIndex++){
                 // Collect potential thresholds
                 vFloat thresholds;
-                for (std::vector<vFloat>::iterator sample = X.begin(); sample != X.end(); sample++)
+                for (vector<vFloat>::iterator sample = X.begin(); sample != X.end(); sample++)
                     thresholds.push_back((*sample)[featureIndex]);
                 std::sort(thresholds.begin(), thresholds.end());
                 thresholds.erase(std::unique(thresholds.begin(), thresholds.end()), thresholds.end());
                 for (vFloat::iterator threshold = thresholds.begin(); threshold != thresholds.end(); threshold++) {
-                    std::vector<int> leftLabels, rightLabels;
+                    vector<int> leftLabels, rightLabels;
                     for (size_t i = 0; i < X.size(); ++i) {
                         if (X[i][featureIndex] <= *threshold)
                             leftLabels.push_back(y[i]);
@@ -567,8 +582,8 @@ protected:
             if (bestGain == -1)
                 return new Node{ -1, 0, y[0] }; // Create a leaf node
             // Split datasets
-            std::vector<vFloat> leftX, rightX;
-            std::vector<int> leftY, rightY;
+            vector<vFloat> leftX, rightX;
+            vector<int> leftY, rightY;
             for (size_t i = 0; i < X.size(); ++i)
                 if (X[i][bestFeature] <= bestThreshold) {
                     leftX.push_back(X[i]);
@@ -590,7 +605,7 @@ protected:
             else
                 return traverseTree(node->right, sample);
         }
-        int calculateGain(const std::vector<int>& leftLabels, const std::vector<int>& rightLabels) {
+        int calculateGain(const vector<int>& leftLabels, const vector<int>& rightLabels) {
             // Implement simple gain calculation (Gini impurity or entropy)
             int leftSize = leftLabels.size();
             int rightSize = rightLabels.size();
@@ -600,7 +615,7 @@ protected:
             double rightImpurity = calculateImpurity(rightLabels);
             return (leftImpurity * leftSize + rightImpurity * rightSize);
         }
-        double calculateImpurity(const std::vector<int>& labels) {
+        double calculateImpurity(const vector<int>& labels) {
             std::map<int, int> counts;
             for (int label : labels) {
                 counts[label]++;
@@ -615,14 +630,14 @@ protected:
     };
     int nTrees;
     int maxDepth;
-    std::vector<DecisionTree> trees;
+    vector<DecisionTree> trees;
 public:
     T_RandomForestClassifier(int nTrees, int maxDepth) : nTrees(nTrees), maxDepth(maxDepth) {this->outputPhotoName = "rf.png";}
     ~T_RandomForestClassifier(){}
-    virtual void Train(const std::vector<T_Sample<classType>>& samples) = 0;
+    virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
         std::map<classType, int> votes;
-        for (typename std::vector<DecisionTree>::iterator tree = trees.begin(); tree != trees.end(); tree++){
+        for (typename vector<DecisionTree>::iterator tree = trees.begin(); tree != trees.end(); tree++){
             classType label = tree->predict(x);
             votes[label]++;
         }
