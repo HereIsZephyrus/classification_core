@@ -64,6 +64,8 @@ void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset,co
     }
     std::vector<size_t> classRecordNum(classNum,0);
     for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
+        if (!it->isTrainSample())
+            continue;
         unsigned int label = static_cast<unsigned int>(it->getLabel());
         const vFloat& sampleFeature = it->getFeatures();
         for (unsigned int i = 0; i < featureNum; i++)
@@ -189,6 +191,8 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
     std::vector<int> waterLabel;
     int selectTag = 0;
     for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
+        if (!it->isTrainSample())
+            continue;
         unsigned int classID = static_cast<unsigned int>(it->getLabel());
         if (it->getLabel() == LandCover::Water){
             waterPN.push_back(it->getFeatures());
@@ -224,13 +228,34 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
 void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
     featureNum = dataset[0].getFeatures().size(); //select all
     classNum = getClassNum();
-    weights.resize(featureNum);
-    srand(time(0));
-    for (int i = 0; i < featureNum; ++i)
-        weights[i] = ((double)rand() / RAND_MAX) * 2 - 1;
-    for (int epoch = 0; epoch < 10000; ++epoch)
-        for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); ++it)
-            backward(it->getFeatures(), it->getLabel());
+    initWeights();
+    int maxiter = 100;
+    while(maxiter--){
+        double TMSE = 0,Tacc = 0;
+        int total = 0;
+        for (std::vector<land_Sample>::const_iterator data = dataset.begin(); data != dataset.end(); data++){
+            if (!data->isTrainSample())
+                continue;
+            ++total;
+            LandCover label = data->getLabel(),resClass = LandCover::UNCLASSIFIED;
+            unsigned int uLabel = static_cast<unsigned int>(label);
+            double maxVal = -1.0;
+            vFloat hidden,output;
+            forwardFeed(data->getFeatures(),hidden,output);
+            TMSE += (1.0 - output[uLabel]) * (1.0 - output[uLabel]);
+            for (int k = 0; k < classNum; k++)
+                if (output[k] > maxVal){
+                    maxVal = output[k];
+                    resClass = static_cast<LandCover>(k);
+                }
+            if (label == resClass)  Tacc += 1.0;
+            backwardFeed(uLabel,data->getFeatures(),hidden,output);
+        }
+        TMSE = TMSE / (double)total;
+		Tacc = Tacc / (double)total * 100.0;
+        if (TMSE < 0.05 || Tacc > 95)
+		    break;
+    }
 }
 void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
     for (int i = 0; i < nTrees; ++i) {
@@ -240,6 +265,8 @@ void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
         std::default_random_engine generator;
         std::uniform_int_distribution<int> distribution(0, dataset.size() - 1);
         for (std::vector<land_Sample>::const_iterator data = dataset.begin(); data != dataset.end(); data++) {
+            if (!data->isTrainSample())
+                continue;
             int index = distribution(generator);
             bootstrapX.push_back(data->getFeatures());
             bootstrapY.push_back(data->getLabel());

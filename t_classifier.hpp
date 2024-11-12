@@ -3,6 +3,8 @@
 #define CALC_EDGE false
 #include <cstring>
 #include <string>
+#include <cstdlib>
+#include <ctime>
 #include <map>
 #include <memory>
 #include <Eigen/Dense>
@@ -333,12 +335,16 @@ protected:
         for (int i = 0; i < classNum; i++)
             classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
         vector<size_t> classRecordNum(classNum,0);
+        int total = 0;
         for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
+            if (!it->isTrainSample())
+                continue;
             unsigned int label = static_cast<unsigned int>(it->getLabel());
             const vFloat& sampleFeature = it->getFeatures();
             for (unsigned int i = 0; i < this->featureNum; i++)
                 classifiedFeaturesAvg[label][i] += sampleFeature[i];
-            classRecordNum[label]++;
+            ++classRecordNum[label];
+            ++total;
         }
         for (unsigned int i = 0; i < classNum; i++)
             for (unsigned int j = 0; j < this->featureNum; j++){
@@ -346,10 +352,12 @@ protected:
                 classifiedFeaturesAvg[i][j] /= classRecordNum[i];
             }
         for (unsigned int j = 0; j < this->featureNum; j++)
-            featureAvg[j] /= samples.size();
+            featureAvg[j] /= total;
         for (unsigned int i = 0; i < classNum; i++)
             mu.push_back(classifiedFeaturesAvg[i]);
         for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
+            if (!it->isTrainSample())
+                continue;
             unsigned int label = it->getLabel();
             const vFloat& sampleFeature = it->getFeatures();
             vFloat pd = sampleFeature;
@@ -495,32 +503,79 @@ public:
 template <class classType>
 class T_BPClassifier : public T_Classifier<classType>{
 protected:
-    int classNum;
-    vFloat weights;
-    double learningRate;
-    float forward(const vFloat& inputs) {
-        float output = 0;
-        for (int i = 0; i < this->featureNum; i++)
-            output += inputs[i] * weights[i];
-        output = activation(output);
-        return output;
-    }
-    void backward(const vFloat& inputs, classType targets) {
-        float output = forward(inputs);
-        float errors = static_cast<float>(targets) - output;
-        for (int i = 0; i < this->featureNum; i++)
-            weights[i] += learningRate * errors * inputs[i];
-    }
+    int classNum,hiddenSize;
+    vector<vFloat> weightsInput2Hidden,weightsHidden2Output,deltaWeightsInput2Hidden,deltaWeightsHidden2Output;
+    double learningRate,momentum;
     float activation(float x) {return 1.0 / (1.0 + exp(-x));}
+    void initWeights(){
+        weightsInput2Hidden.assign(this->featureNum+1,vFloat(hiddenSize,0));
+        weightsHidden2Output.assign(hiddenSize+1,vFloat(classNum,0));
+        deltaWeightsInput2Hidden.assign(this->featureNum+1,vFloat(hiddenSize,0));
+        deltaWeightsHidden2Output.assign(hiddenSize+1,vFloat(classNum,0));
+        double rangeHidden = 1/sqrt((double)featureNum);
+        double rangeOutput = 1/sqrt((double)hiddenSize);
+        srand(time(0));
+        for (int i = 0; i <= featureNum; i++)
+            for (int j = 0; j < hiddenSize; j++)
+                weightsInput2Hidden[i][j] = (((double)(rand() % 100 + 1))/100.0) * 2.0 * rangeHidden - rangeHidden;
+        for (int j = 0; j <= hiddenSize; j++)
+            for (int k = 0; k < classNum; k++)
+                weightsHidden2Output[j][k] = (((double)(rand() % 100 + 1))/100.0) * 2.0 * rangeOutput - rangeOutput;
+    }
+    void forwardFeed(const vFloat& inputs,vFloat& neuronHidden,vFloat& neuronOutput) {
+        vFloat neuronInput,neuronHidden,neuronOutput;
+        neuroInput = inputs;
+        neuronInput.push_back(-1); // bias neuronn
+        neuronHidden.assign(hiddenSize,0);
+        neuronHidden.push_back(-1); // bias neuronn
+        neuronOutput.assign(classNum,0);
+        for (int j = 0; j < hiddenSize; j++){
+            for (int i = 0; i <= this->featureNum; i++)
+                neuronHidden[j] += neuronInput[i] * weightsInput2Hidden[i][j];
+            neuronHidden[j] = activation(neuronHidden[j]);
+        }
+        for (int k = 0; k < classNum; k++){
+            for (int j = 0; j <= hiddenSize; j++)
+                neuronOutput[k] += neuronHidden[j] * weightsHidden2Output[j][k];
+            neuronOutput[k] = activation(neuronOutput[k]);
+        }
+    }
+    void backwardFeed(unsigned int loc,const vFloat& neuronInput,const vFloat& neuronHidden,const vFloat& neuronOutput) {
+        vFloat idealOutput(classNum,0.0f);
+        vFloat errorOutput(classNum,0.0f);
+        vFloat errorHidden(hiddenSize+1,0.0f);
+        idealOutput[loc] = 1.0f;
+        for (int k = 0; k < classNum; k++)
+            errorOutput[k] = neuronOutput[k] * (1 - neuronOutput[k]) * (idealOutput[k] - neuronOutput[k]);
+        for (int j = 0; j <= hiddenSize; j++){
+            int sum = 0;
+            for (int k = 0; k < sizeOutput; k++){
+                sum += weightsHidden2Output[j][k] * errorOutput[k];
+                deltaWeightsHidden2Output[j][k] = learningRate * neuronHidden[j] * errorOutput[k] + momentum * deltaWeightsHidden2Output[j][k];
+                weightsHidden2Output[j][k] += deltaWeightsHidden2Output[j][k];
+            }
+            errorHidden[j] = neuronHidden[j] * (1 - neuronHidden[j]) * sum;
+        }
+        for (int i = 0; i <= this->featureNum; i++)
+            for (int j = 0; j < hiddenSize; j++){
+                deltaWeightsInput2Hidden[i][j] = learningRate * neuronInput[i] * errorHidden[j] + momentum * deltaWeightsInput2Hidden[i][j];
+                weightsInput2Hidden[i][j] += deltaWeightsInput2Hidden[i][j];
+            }
+    }
 public:
-    T_BPClassifier(double rate = 0.3):classNum(0),learningRate(rate) {this->outputPhotoName = "bp.png";}
+    T_BPClassifier(int hiddensize = 20, double rate = 0.4, double mom = 0.8):classNum(0),hiddenSize(hiddensize),learningRate(rate),momentum(mom) {this->outputPhotoName = "bp.png";}
     ~T_BPClassifier(){}
     virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        float res = 0;
-        for (int i = 0; i < this->featureNum; i++)
-            res += x[i] * weights[i];
-        return static_cast<classType>((unsigned int)(res + 0.5));
+        vFloat actived = forwardFeed(x);
+        classType resClass;
+        float maxLight = 0.0f;
+        for (int i = 0; i < classNum; i++)
+            if (actived[i] > maxLight){
+                maxLight = actived[i];
+                resClass = static_cast<classType>(i);
+            }
+        return resClass;
     }
 };
 template <class classType>
