@@ -31,6 +31,7 @@ enum Spectra : unsigned int{
 typedef std::vector<LandCover> vCovers;
 extern std::string classFolderNames[LandCover::CoverType];
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
+extern vFloat MAXVAL,MINVAL;
 }
 typedef T_StaticPara<weilaicheng::LandCover> land_StaticPara;
 typedef T_Sample<weilaicheng::LandCover> land_Sample;

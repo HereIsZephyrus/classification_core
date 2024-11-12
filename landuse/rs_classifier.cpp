@@ -42,6 +42,7 @@ void land_StaticPara::Sampling(const std::string& entryPath){
     return;
 }
 namespace weilaicheng{
+vFloat MAXVAL(Spectra::SpectralNum * 2),MINVAL(Spectra::SpectralNum * 2);
 std::string classFolderNames[LandCover::CoverType] = 
 {"Water","Greenland","bareland","Imprevious"};
 std::unordered_map<LandCover,cv::Scalar> classifyColor = {
@@ -191,11 +192,11 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
         unsigned int classID = static_cast<unsigned int>(it->getLabel());
         if (it->getLabel() == LandCover::Water){
             waterPN.push_back(it->getFeatures());
-            waterLabel.push_back(0);
+            waterLabel.push_back(1);
         }else{
             if (!selectTag){
                 waterPN.push_back(it->getFeatures());
-                waterLabel.push_back(1);
+                waterLabel.push_back(-1);
             }
             selectTag = (selectTag+1)%3;
         }
@@ -211,8 +212,8 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
                 continue;
             std::vector<vFloat> classPN = classCount[i];
             std::vector<int> classLabeli,classLabelj;
-            classLabeli.assign(classCount[i].size(),0);
-            classLabelj.assign(classCount[j].size(),1);
+            classLabeli.assign(classCount[i].size(),1);
+            classLabelj.assign(classCount[j].size(),-1);
             classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
             classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
             OVOSVM classifier = OVOSVM(static_cast<LandCover>(i),static_cast<LandCover>(j));

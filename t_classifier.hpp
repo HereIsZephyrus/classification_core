@@ -42,6 +42,10 @@ public:
     ~T_Sample(){}
     classType getLabel() const{return label;}
     const vFloat& getFeatures() const{return features;}
+    void scalingFeatures(const vFloat& maxVal,const vFloat& minVal){
+        for (size_t i = 0; i < features.size(); i++)
+            features[i] = (features[i] - minVal[i])  / (maxVal[i] - minVal[i]);
+    }
     bool isTrainSample() const{return isTrain;}
 };
 template <typename classType>
@@ -75,7 +79,7 @@ public:
         std::cout << "Recall: " << recall << std::endl;
         std::cout << "F1: " << f1 << std::endl;
     }
-    void Classify(const cv::Mat& featureImage,std::vector<std::vector<classType>>& pixelClasses,classType edgeType,int classifierKernelSize = defaultClassifierKernelSize){
+    void Classify(const cv::Mat& featureImage,std::vector<std::vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize = defaultClassifierKernelSize){
         int classNum = getClassNum();
         using ClassMat = std::vector<std::vector<classType>>;
         using vClasses = std::vector<classType>;
@@ -92,6 +96,8 @@ public:
                 cv::split(sample, channels);
                 vFloat data;
                 tcb::CalcChannelMeanStds(channels, data);
+                for (size_t i = 0; i < data.size(); i++)
+                    data[i] = (data[i] - minVal[i])  / (maxVal[i] - minVal[i]);
                 rowClasses.push_back(Predict(data));
             }
             patchClasses.push_back(rowClasses);
@@ -413,7 +419,7 @@ protected:
             return result;
         }
     public:
-        OVOSVM(classType pos,classType neg,double learningRate = 0.8, int maxIter = 1000)
+        OVOSVM(classType pos,classType neg,double learningRate = 0.5, int maxIter = 1000)
         : learningRate(learningRate),maxIter(maxIter),positiveClass(pos),negetiveClass(neg) {}
         void fit(const std::vector<vFloat>& X, const std::vector<int>& y) {
             int sampleNum = X.size();

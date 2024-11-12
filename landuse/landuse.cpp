@@ -19,7 +19,7 @@ int LanduseMain(){
         land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
         bayes->Train(dataset);
         std::vector<std::vector<LandCover>> pixelClasses;
-        bayes->Classify(rawImage,pixelClasses,LandCover::Edge);
+        bayes->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Naive Bayes", classified);
@@ -32,7 +32,7 @@ int LanduseMain(){
         land_FisherClassifier* fisher = new land_FisherClassifier();
         fisher->Train(dataset);
         std::vector<std::vector<LandCover>> pixelClasses;
-        fisher->Classify(rawImage,pixelClasses,LandCover::Edge);
+        fisher->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Fisher", classified);
@@ -45,7 +45,7 @@ int LanduseMain(){
         land_SVMClassifier* svm = new land_SVMClassifier();
         svm->Train(dataset);
         std::vector<std::vector<LandCover>> pixelClasses;
-        svm->Classify(rawImage,pixelClasses,LandCover::Edge);
+        svm->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("SVM", classified);
@@ -58,7 +58,7 @@ int LanduseMain(){
         land_BPClassifier* bp = new land_BPClassifier();
         bp->Train(dataset);
         std::vector<std::vector<LandCover>> pixelClasses;
-        bp->Classify(rawImage,pixelClasses,LandCover::Edge);
+        bp->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("BP", classified);
@@ -71,7 +71,7 @@ int LanduseMain(){
         land_RandomClassifier* randomforest = new land_RandomClassifier();
         randomforest->Train(dataset);
         std::vector<std::vector<LandCover>> pixelClasses;
-        randomforest->Classify(rawImage,pixelClasses,LandCover::Edge);
+        randomforest->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Random Forest", classified);
@@ -103,12 +103,20 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
             classParas[classID].Sampling(entry.path());
         }
     }
+    for (unsigned int i = 0; i < Spectra::SpectralNum * 2; i++){
+        MAXVAL[i] = 0;
+        MINVAL[i] = 1e6;
+    }
     for (unsigned int classID = 0; classID < LandCover::CoverType; classID++){
         const std::vector<vFloat>& avg = classParas[classID].getAvg();
         const std::vector<vFloat>& var = classParas[classID].getVar();
         for (unsigned int i = 0; i < classParas[classID].getRecordsNum(); i++){
             vFloat data;
             for (unsigned int d = 0; d < Spectra::SpectralNum; d++){
+                MAXVAL[d * 2] = std::max(MAXVAL[d],avg[i][d]);
+                MINVAL[d * 2] = std::min(MINVAL[d],avg[i][d]);
+                MAXVAL[d * 2 + 1] = std::max(MAXVAL[d],var[i][d]);
+                MINVAL[d * 2 + 1] = std::min(MINVAL[d],var[i][d]);
                 data.push_back(avg[i][d]);
                 data.push_back(var[i][d]);
             }
@@ -117,6 +125,8 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
             dataset.push_back(sample);
         }
     }
+    for (std::vector<land_Sample>::iterator data = dataset.begin(); data != dataset.end(); data++)
+        data->scalingFeatures(MAXVAL,MINVAL);
     return true;
 }
 }
