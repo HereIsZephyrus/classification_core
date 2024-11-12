@@ -31,7 +31,6 @@ void generateFeatureImage(cv::Mat& rawImage){
     cv::merge(falseColorChannel,falseColor);
     cv::imwrite(SplitFolder + "truecolor.tif", trueColor);
     cv::imwrite(SplitFolder + "falsecolor.tif", falseColor);
-    /*
     cv::Mat hsvTrueColor,hsvFalseColor;
     cv::cvtColor(trueColor, hsvTrueColor, cv::COLOR_BGR2HSV);
     cv::cvtColor(falseColor, hsvFalseColor, cv::COLOR_BGR2HSV);
@@ -43,7 +42,6 @@ void generateFeatureImage(cv::Mat& rawImage){
     bands.push_back(hsvchannels[0]);
     bands.push_back(hsvchannels[1]);
     cv::merge(bands, rawImage);
-    */
 }
 bool GenerateFeatureChannels(std::vector<cv::Mat> &channels){
     cv::Mat trueColor,falseColor;

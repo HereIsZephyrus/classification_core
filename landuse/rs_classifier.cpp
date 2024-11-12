@@ -21,7 +21,6 @@ void land_StaticPara::Sampling(const std::string& entryPath){
     using namespace weilaicheng;
     std::vector<cv::Mat> channels;
     cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);
-    std::cout << "Number of channels: " << channels.size() << std::endl;
     weilaicheng::GenerateFeatureChannels(channels);
     const unsigned int patchRows = channels[0].rows, patchCols = channels[0].cols;
     for (unsigned int left = 0; left < patchCols - classifierKernelSize + 1; left+=classifierKernelSize/2){

@@ -86,6 +86,7 @@ public:
                 cv::Rect window(c - classifierKernelSize/2 ,r - classifierKernelSize/2,  classifierKernelSize - lastColCheck, classifierKernelSize - lastRowCheck);  
                 cv::Mat sample = featureImage(window);
                 std::vector<cv::Mat> channels;
+                cv::split(sample, channels);
                 vFloat data;
                 tcb::CalcChannelMeanStds(channels, data);
                 rowClasses.push_back(Predict(data));

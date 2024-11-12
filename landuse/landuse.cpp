@@ -88,7 +88,7 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
         for (const auto& entry : fs::recursive_directory_iterator(classFolderPath)) {
             const std::string suffix = ".tif";
             size_t pos = std::string(entry.path()).rfind(suffix);
-            if (pos == std::string::npos || pos == std::string(entry.path()).length() - suffix.length())
+            if (pos == std::string::npos || pos != std::string(entry.path()).length() - suffix.length())
                 continue;
             classParas[classID].Sampling(entry.path());
         }
