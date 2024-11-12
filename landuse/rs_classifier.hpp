@@ -25,9 +25,6 @@ enum Spectra : unsigned int{
     Green,
     Red,
     NIR,
-    TrueSat,
-    TrueHue,
-    FalseSat,
     FalseHue,
     SpectralNum
 };

@@ -31,35 +31,32 @@ void generateFeatureImage(cv::Mat& rawImage){
     cv::merge(falseColorChannel,falseColor);
     cv::imwrite(SplitFolder + "truecolor.tif", trueColor);
     cv::imwrite(SplitFolder + "falsecolor.tif", falseColor);
-    cv::Mat hsvTrueColor,hsvFalseColor;
-    cv::cvtColor(trueColor, hsvTrueColor, cv::COLOR_BGR2HSV);
+    cv::Mat hsvFalseColor,hsvTrueColor;
     cv::cvtColor(falseColor, hsvFalseColor, cv::COLOR_BGR2HSV);
+    cv::cvtColor(trueColor, hsvTrueColor, cv::COLOR_BGR2HSV);
     std::vector<cv::Mat> hsvchannels;
-    cv::split(hsvTrueColor, hsvchannels);
-    bands.push_back(hsvchannels[0]);
-    bands.push_back(hsvchannels[1]);
     cv::split(hsvFalseColor, hsvchannels);
     bands.push_back(hsvchannels[0]);
-    bands.push_back(hsvchannels[1]);
+    //hsvchannels.clear();
+    //cv::split(hsvTrueColor, hsvchannels);
+    //bands.push_back(hsvchannels[2]);
     cv::merge(bands, rawImage);
 }
 bool GenerateFeatureChannels(std::vector<cv::Mat> &channels){
     cv::Mat trueColor,falseColor;
-    std::cout<<channels.size()<<std::endl;
     std::vector<cv::Mat> trueColorChannel = {channels[2],channels[1],channels[0]};
     std::vector<cv::Mat> falseColorChannel = {channels[1],channels[2],channels[3]};
     cv::merge(trueColorChannel,trueColor);
     cv::merge(falseColorChannel,falseColor);
-    cv::Mat hsvTrueColor,hsvFalseColor;
+    cv::Mat hsvFalseColor,hsvTrueColor;
     cv::cvtColor(trueColor, hsvTrueColor, cv::COLOR_BGR2HSV);
     cv::cvtColor(falseColor, hsvFalseColor, cv::COLOR_BGR2HSV);
     std::vector<cv::Mat> hsvchannels;
-    cv::split(hsvTrueColor, hsvchannels);
-    channels.push_back(hsvchannels[0]);
-    channels.push_back(hsvchannels[1]);
     cv::split(hsvFalseColor, hsvchannels);
     channels.push_back(hsvchannels[0]);
-    channels.push_back(hsvchannels[1]);
+    //hsvchannels.clear();
+    //cv::split(hsvTrueColor, hsvchannels);
+    //channels.push_back(hsvchannels[2]);
     return true;
 }
 }

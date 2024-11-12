@@ -167,19 +167,17 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
     delete[] SwMat;
     delete[] SbMat;
     SelfAdjointEigenSolver<MatrixXf> eig(Sw.completeOrthogonalDecomposition().pseudoInverse() * Sb);
-    std::cout<<Sw.completeOrthogonalDecomposition().pseudoInverse()<<std::endl;
-    std::cout<<Sb<<std::endl;
-    //std::cout << "Eig Matrix:\n" << eig.eigenvalues() << std::endl;
-    MatrixXf projectionMatrix = eig.eigenvectors();
     int classNum = getClassNum();
-    projMat = new float*[classNum];
-    for (size_t i = 0; i < getClassNum(); i++){
-        projMat[i] = new float[featureNum];
-        for (size_t j = 0; j < featureNum; j++){
-            projMat[i][j] = projectionMatrix(i,j);
-            std::cout<<projMat[i][j]<<' ';
-        }
-        std::cout<<std::endl;
+    MatrixXf projectionMatrix = eig.eigenvectors().rightCols(1);
+    for (size_t j = 0; j < featureNum; j++){
+        projMat.push_back(projectionMatrix(j));
+    }
+    for (int i = 0; i < classNum; i++){
+        float calcmean = 0;
+        for (size_t j = 0; j < featureNum; j++)
+            calcmean += projectionMatrix(j) * mu[i][j];
+        signal.push_back(calcmean);
+        std::cout<<signal[i]<<std::endl;
     }
     return;
 }

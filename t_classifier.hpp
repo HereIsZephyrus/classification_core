@@ -316,12 +316,13 @@ template <class classType>
 class T_FisherClassifier : public T_Classifier<classType>{
 protected:
     using SampleType = T_Sample<classType>;
-    fMat projMat;
+    std::vector<vFloat> mu;
+    vFloat signal,projMat;
     void CalcSwSb(float** Sw,float** Sb,const std::vector<SampleType>& samples){
         using SampleList = std::vector<T_Sample<classType>>;
         unsigned int classNum = this->getClassNum();
         vFloat featureAvg(this->featureNum, 0.0f);
-        std::vector<double> classifiedFeaturesAvg[classNum];
+        vFloat classifiedFeaturesAvg[classNum];
         for (int i = 0; i < classNum; i++)
             classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
         std::vector<size_t> classRecordNum(classNum,0);
@@ -334,12 +335,13 @@ protected:
         }
         for (unsigned int i = 0; i < classNum; i++)
             for (unsigned int j = 0; j < this->featureNum; j++){
-                classifiedFeaturesAvg[i][j] /= classRecordNum[i];
                 featureAvg[j] += classifiedFeaturesAvg[i][j];
+                classifiedFeaturesAvg[i][j] /= classRecordNum[i];
             }
         for (unsigned int j = 0; j < this->featureNum; j++)
-            featureAvg[j] /= classNum;
-
+            featureAvg[j] /= samples.size();
+        for (unsigned int i = 0; i < classNum; i++)
+            mu.push_back(classifiedFeaturesAvg[i]);
         for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             unsigned int label = it->getLabel();
             const vFloat& sampleFeature = it->getFeatures();
@@ -360,24 +362,20 @@ protected:
         }
     }
 public:
-    T_FisherClassifier() {projMat = nullptr;this->outputPhotoName = "fisher.png";}
-    ~T_FisherClassifier(){
-        if (projMat != nullptr){
-            for (size_t i = 0; i < this->getClassNum(); i++)
-                delete[] projMat[i];
-            delete[] projMat;
-        }
-    }
+    T_FisherClassifier() {this->outputPhotoName = "fisher.png";}
+    ~T_FisherClassifier(){}
     virtual void Train(const std::vector<SampleType>& samples) = 0;
+
     classType Predict(const vFloat& x){
         classType resClass;
-        double maxProb = -10e9;
+        double projed = 0;
+        for (unsigned int i = 0; i < this->featureNum; i++)
+            projed += x[i] * projMat[i];
+        double minDistance = 1e10;
         for (unsigned int classID = 0; classID < this->getClassNum(); classID++){
-            double prob = 0.0f;
-            for (unsigned int i = 0; i < this->featureNum; i++)
-                prob += x[i] * projMat[classID][i];
-            if (prob > maxProb){
-                maxProb = prob;
+            double distance = (projed - signal[classID])*(projed - signal[classID]);
+            if (distance < minDistance) {
+                minDistance = distance;
                 resClass = static_cast<classType>(classID);
             }
         }

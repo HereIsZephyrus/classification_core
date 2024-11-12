@@ -162,71 +162,37 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
 namespace linear{
 void FisherClassifier::Train(const std::vector<Sample>& samples){
     featureNum = samples[0].getFeatures().size(); //select all
-    fMat Sw,Sb;
-    Sw= new float*[featureNum];
-    Sb = new float*[featureNum];
+    fMat SwMat,SbMat;
+    SwMat = new float*[featureNum];
+    SbMat = new float*[featureNum];
     for (size_t i = 0; i < featureNum; i++){
-        Sw[i] = new float[featureNum];
-        Sb[i] = new float[featureNum];
+        SwMat[i] = new float[featureNum];
+        SbMat[i] = new float[featureNum];
         for (size_t j = 0; j < featureNum; j++)
-            Sw[i][j] = 0.0f,Sb[i][j] = 0.0f;
+            SwMat[i][j] = 0.0f,SbMat[i][j] = 0.0f;
     }
-
-    CalcSwSb(Sw,Sb,samples);
-
-    float** invSw = new float*[featureNum];
+    CalcSwSb(SwMat,SbMat,samples);
+    MatrixXf Sw(featureNum,featureNum),Sb(featureNum,featureNum);
+    for (size_t i = 0; i < featureNum; i++)
+        for (size_t j = 0; j < featureNum; j++)
+            Sw(i,j) = SwMat[i][j],Sb(i,j) = SbMat[i][j];
     for (size_t i = 0; i < featureNum; i++){
-        invSw[i] = new float[featureNum];
+        delete[] SwMat[i];
+        delete[] SbMat[i];
+    }
+    delete[] SwMat;
+    delete[] SbMat;
+    SelfAdjointEigenSolver<MatrixXf> eig(Sw.completeOrthogonalDecomposition().pseudoInverse() * Sb);
+    int classNum = getClassNum();
+    MatrixXf projectionMatrix = eig.eigenvectors().rightCols(1);
+    for (size_t j = 0; j < featureNum; j++)
+        projMat.push_back(projectionMatrix(j));
+    for (int i = 0; i < classNum; i++){
+        float calcmean = 0;
         for (size_t j = 0; j < featureNum; j++)
-            invSw[i][j] = 0.0f;
+            calcmean += projectionMatrix(j) * mu[i][j];
+        signal.push_back(calcmean);
     }
-    tcb::CalcInvMat(Sw,invSw,featureNum);
-
-    //std::vector<vFloat> featureMat(featureNum,vFloat(featureNum,0.0f));
-    MatrixXd featureMat(featureNum,featureNum);
-    for (int i = 0; i< featureNum; i++)
-        for (int j = 0; j < featureNum; j++)
-            for (int k = 0; k < featureNum; k++)
-                //featureMat[i][j] += invSw[i][k] * Sb[k][j];
-                featureMat(i,j) += invSw[i][k] * Sb[k][j];
-    /*
-    vFloat EigVal(featureNum,0.0f);
-    std::vector<vFloat> EigVec(featureNum,vFloat(featureNum,0.0f));
-    tcb::CalcEigen(featureMat,EigVal,EigVec,featureNum);
-    */
-    SelfAdjointEigenSolver<MatrixXd> eig(featureMat);
-    VectorXd EigVal = eig.eigenvalues().real();
-    MatrixXd EigVec = eig.eigenvectors().real();
-    std::cout<<"Eigenvalues: "<<std::endl;
-    for (int i = 0; i < featureNum; i++)
-        std::cout<<EigVal(i)<<' ';
-    std::cout<<std::endl;
-    std::cout<<"Eigenvectors: "<<std::endl;
-    for (int i = 0; i < featureNum; i++){
-        for (int j = 0; j < featureNum; j++)
-            std::cout<<EigVec(i,j)<<' ';
-        std::cout<<std::endl;
-    }
-    
-    const unsigned int classNum = getClassNum();
-    projMat = new float*[classNum];
-    for (size_t i = 0; i < classNum; i++){
-        projMat[i] = new float[featureNum];
-        for (size_t j = 0; j < featureNum; j++){
-            //projMat[i][j] = EigVec[i][j];
-            projMat[i][j] = EigVec(i,j);
-            std::cout<<projMat[i][j]<<' ';
-        }
-        std::cout<<std::endl;
-    }
-    for(size_t i = 0;i < featureNum;i++){
-        delete[] Sw[i];
-        delete[] Sb[i];
-        delete[] invSw[i];
-    }
-    delete[] Sw;
-    delete[] Sb;
-    delete[] invSw;
     return;
 }
 bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
