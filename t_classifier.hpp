@@ -512,10 +512,10 @@ protected:
         weightsHidden2Output.assign(hiddenSize+1,vFloat(classNum,0));
         deltaWeightsInput2Hidden.assign(this->featureNum+1,vFloat(hiddenSize,0));
         deltaWeightsHidden2Output.assign(hiddenSize+1,vFloat(classNum,0));
-        double rangeHidden = 1/sqrt((double)featureNum);
+        double rangeHidden = 1/sqrt((double)this->featureNum);
         double rangeOutput = 1/sqrt((double)hiddenSize);
         srand(time(0));
-        for (int i = 0; i <= featureNum; i++)
+        for (int i = 0; i <= this->featureNum; i++)
             for (int j = 0; j < hiddenSize; j++)
                 weightsInput2Hidden[i][j] = (((double)(rand() % 100 + 1))/100.0) * 2.0 * rangeHidden - rangeHidden;
         for (int j = 0; j <= hiddenSize; j++)
@@ -523,8 +523,7 @@ protected:
                 weightsHidden2Output[j][k] = (((double)(rand() % 100 + 1))/100.0) * 2.0 * rangeOutput - rangeOutput;
     }
     void forwardFeed(const vFloat& inputs,vFloat& neuronHidden,vFloat& neuronOutput) {
-        vFloat neuronInput,neuronHidden,neuronOutput;
-        neuroInput = inputs;
+        vFloat neuronInput = inputs;
         neuronInput.push_back(-1); // bias neuronn
         neuronHidden.assign(hiddenSize,0);
         neuronHidden.push_back(-1); // bias neuronn
@@ -549,7 +548,7 @@ protected:
             errorOutput[k] = neuronOutput[k] * (1 - neuronOutput[k]) * (idealOutput[k] - neuronOutput[k]);
         for (int j = 0; j <= hiddenSize; j++){
             int sum = 0;
-            for (int k = 0; k < sizeOutput; k++){
+            for (int k = 0; k < classNum; k++){
                 sum += weightsHidden2Output[j][k] * errorOutput[k];
                 deltaWeightsHidden2Output[j][k] = learningRate * neuronHidden[j] * errorOutput[k] + momentum * deltaWeightsHidden2Output[j][k];
                 weightsHidden2Output[j][k] += deltaWeightsHidden2Output[j][k];
@@ -567,7 +566,8 @@ public:
     ~T_BPClassifier(){}
     virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        vFloat actived = forwardFeed(x);
+        vFloat hidden,actived;
+        forwardFeed(x,hidden,actived);
         classType resClass;
         float maxLight = 0.0f;
         for (int i = 0; i < classNum; i++)
