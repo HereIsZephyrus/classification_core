@@ -23,8 +23,10 @@ int LanduseMain(){
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Naive Bayes", classified);
+        bayes->Examine(dataset);
         bayes->PrintPrecision();
         cv::waitKey(0);
+        cv::destroyWindow("Naive Bayes");
     }
     {
         land_FisherClassifier* fisher = new land_FisherClassifier();
@@ -34,8 +36,10 @@ int LanduseMain(){
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Fisher", classified);
+        fisher->Examine(dataset);
         fisher->PrintPrecision();
         cv::waitKey(0);
+        cv::destroyWindow("Fisher");
     }
     {
         land_SVMClassifier* svm = new land_SVMClassifier();
@@ -45,8 +49,10 @@ int LanduseMain(){
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("SVM", classified);
+        svm->Examine(dataset);
         svm->PrintPrecision();
         cv::waitKey(0);
+        cv::destroyWindow("SVM");
     }
     {
         land_BPClassifier* bp = new land_BPClassifier();
@@ -56,8 +62,10 @@ int LanduseMain(){
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("BP", classified);
+        bp->Examine(dataset);
         bp->PrintPrecision();
         cv::waitKey(0);
+        cv::destroyWindow("BP");
     }
     {
         land_RandomClassifier* randomforest = new land_RandomClassifier();
@@ -67,8 +75,10 @@ int LanduseMain(){
         cv::Mat classified;
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Random Forest", classified);
+        randomforest->Examine(dataset);
         randomforest->PrintPrecision();
         cv::waitKey(0);
+        cv::destroyWindow("Random Forest");
     }
     return 0;
 }

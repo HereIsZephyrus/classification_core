@@ -1,5 +1,6 @@
 #ifndef TCLASSIFIER_HPP
 #define TCLASSIFIER_HPP
+#define CALC_EDGE false
 #include <cstring>
 #include <string>
 #include <map>
@@ -41,6 +42,7 @@ public:
     ~T_Sample(){}
     classType getLabel() const{return label;}
     const vFloat& getFeatures() const{return features;}
+    bool isTrainSample() const{return isTrain;}
 };
 template <typename classType>
 class T_Classifier{
@@ -54,17 +56,18 @@ public:
     virtual size_t getClassNum() const{return 0;}
     const std::string& printPhoto() const{return outputPhotoName;}
     void Examine(const std::vector<T_Sample<classType>>& samples){
-        size_t pcorrectNum = 0, rcorrectNum = 0;
+        size_t TP = 0, FP = 0,FN = 0,testSampleNum = 0;
         for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())
                 continue;
+            ++ testSampleNum;
             if (Predict(it->getFeatures()) == it->getLabel())
-                pcorrectNum++;
+                TP++;
             if (it->getLabel() == Predict(it->getFeatures()))
-                rcorrectNum++;
+                FP++;
         }
-        precision = static_cast<float>(pcorrectNum)/samples.size();
-        recall = static_cast<float>(rcorrectNum)/samples.size();
+        precision = static_cast<float>(TP)/testSampleNum;
+        recall = static_cast<float>(FP)/testSampleNum;
         f1 = 2*precision*recall/(precision+recall);
     }
     void PrintPrecision(){
@@ -101,7 +104,7 @@ public:
                     temprow.push_back(*col);
                     continue;
                 }
-                if ((*col) != (*(col-1)))//horizontalEdgeCheck
+                if (CALC_EDGE &&(*col) != (*(col-1)))//horizontalEdgeCheck
                     temprow.push_back(edgeType);
                 else
                     temprow.push_back(*col);
@@ -116,7 +119,7 @@ public:
             vClasses temprow;
             typename vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
             { //tackle the first col
-                if (*col == *diagonalCol)
+                if (!CALC_EDGE || *col == *diagonalCol)
                     temprow.push_back(*col);
                 else
                     temprow.push_back(edgeType);
@@ -126,7 +129,7 @@ public:
                 bool horizontalEdgeCheck = (*col) == (*(col-1));
                 bool verticalEdgeCheck = (*col) == (*(diagonalCol+1));
                 bool diagonalEdgeCheck = (*col) == (*(diagonalCol));
-                if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
+                if (!CALC_EDGE || (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck))
                     temprow.push_back(*col);
                 else
                     temprow.push_back(edgeType);
@@ -142,7 +145,7 @@ public:
             vClasses temprow;
             typename vClasses::const_iterator col = row->begin(),diagonalCol = lastRowBegin;
             { //tackle the first col
-                if (*col == *diagonalCol)
+                if (!CALC_EDGE || *col == *diagonalCol)
                     temprow.push_back(*col);
                 else
                     temprow.push_back(edgeType);
@@ -152,7 +155,7 @@ public:
                 bool horizontalEdgeCheck = (*col) == (*(col-1));
                 bool verticalEdgeCheck = (*col) == (*(diagonalCol+1));
                 bool diagonalEdgeCheck = (*col) == (*(diagonalCol));
-                if (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck)
+                if (!CALC_EDGE || (horizontalEdgeCheck && verticalEdgeCheck && diagonalEdgeCheck))
                     temprow.push_back(*col);
                 else
                     temprow.push_back(edgeType);
@@ -330,10 +333,10 @@ protected:
             classRecordNum[label]++;
         }
         for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < this->featureNum; j++){
-            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-            featureAvg[j] += classifiedFeaturesAvg[i][j];
-        }
+            for (unsigned int j = 0; j < this->featureNum; j++){
+                classifiedFeaturesAvg[i][j] /= classRecordNum[i];
+                featureAvg[j] += classifiedFeaturesAvg[i][j];
+            }
         for (unsigned int j = 0; j < this->featureNum; j++)
             featureAvg[j] /= classNum;
 

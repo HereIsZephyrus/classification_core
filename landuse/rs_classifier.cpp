@@ -122,7 +122,6 @@ bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
         std::vector<std::string> row;
         while (std::getline(ss, value, ',')) {}
         totalRecord++;
-        value.pop_back();
         if (value == "Water")
             countings[LandCover::Water]++;
         else if (value == "Greenland")
@@ -147,61 +146,41 @@ void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset){
 }
 void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
     featureNum = dataset[0].getFeatures().size(); //select all
-    fMat Sw,Sb;
-    Sw= new float*[featureNum];
-    Sb = new float*[featureNum];
+    fMat SwMat,SbMat;
+    SwMat = new float*[featureNum];
+    SbMat = new float*[featureNum];
     for (size_t i = 0; i < featureNum; i++){
-        Sw[i] = new float[featureNum];
-        Sb[i] = new float[featureNum];
+        SwMat[i] = new float[featureNum];
+        SbMat[i] = new float[featureNum];
         for (size_t j = 0; j < featureNum; j++)
-            Sw[i][j] = 0.0f,Sb[i][j] = 0.0f;
+            SwMat[i][j] = 0.0f,SbMat[i][j] = 0.0f;
     }
-    CalcSwSb(Sw,Sb,dataset);
-    float** invSw = new float*[featureNum];
+    CalcSwSb(SwMat,SbMat,dataset);
+    MatrixXf Sw(featureNum,featureNum),Sb(featureNum,featureNum);
+    for (size_t i = 0; i < featureNum; i++)
+        for (size_t j = 0; j < featureNum; j++)
+            Sw(i,j) = SwMat[i][j],Sb(i,j) = SbMat[i][j];
     for (size_t i = 0; i < featureNum; i++){
-        invSw[i] = new float[featureNum];
-        for (size_t j = 0; j < featureNum; j++)
-            invSw[i][j] = 0.0f;
+        delete[] SwMat[i];
+        delete[] SbMat[i];
     }
-    tcb::CalcInvMat(Sw,invSw,featureNum);
-    MatrixXd featureMat(featureNum,featureNum);
-    for (int i = 0; i< featureNum; i++)
-        for (int j = 0; j < featureNum; j++)
-            for (int k = 0; k < featureNum; k++)
-                featureMat(i,j) += invSw[i][k] * Sb[k][j];
-    SelfAdjointEigenSolver<MatrixXd> eig(featureMat);
-    VectorXd EigVal = eig.eigenvalues().real();
-    MatrixXd EigVec = eig.eigenvectors().real();
-    std::cout<<"Eigenvalues: "<<std::endl;
-    for (int i = 0; i < featureNum; i++)
-        std::cout<<EigVal(i)<<' ';
-    std::cout<<std::endl;
-    std::cout<<"Eigenvectors: "<<std::endl;
-    for (int i = 0; i < featureNum; i++){
-        for (int j = 0; j < featureNum; j++)
-            std::cout<<EigVec(i,j)<<' ';
-        std::cout<<std::endl;
-    }
-    
-    const unsigned int classNum = getClassNum();
+    delete[] SwMat;
+    delete[] SbMat;
+    SelfAdjointEigenSolver<MatrixXf> eig(Sw.completeOrthogonalDecomposition().pseudoInverse() * Sb);
+    std::cout<<Sw.completeOrthogonalDecomposition().pseudoInverse()<<std::endl;
+    std::cout<<Sb<<std::endl;
+    //std::cout << "Eig Matrix:\n" << eig.eigenvalues() << std::endl;
+    MatrixXf projectionMatrix = eig.eigenvectors();
+    int classNum = getClassNum();
     projMat = new float*[classNum];
-    for (size_t i = 0; i < classNum; i++){
+    for (size_t i = 0; i < getClassNum(); i++){
         projMat[i] = new float[featureNum];
         for (size_t j = 0; j < featureNum; j++){
-            //projMat[i][j] = EigVec[i][j];
-            projMat[i][j] = EigVec(i,j);
+            projMat[i][j] = projectionMatrix(i,j);
             std::cout<<projMat[i][j]<<' ';
         }
         std::cout<<std::endl;
     }
-    for(size_t i = 0;i < featureNum;i++){
-        delete[] Sw[i];
-        delete[] Sb[i];
-        delete[] invSw[i];
-    }
-    delete[] Sw;
-    delete[] Sb;
-    delete[] invSw;
     return;
 }
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
