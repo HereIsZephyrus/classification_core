@@ -583,20 +583,20 @@ public:
 };
 template <class classType>
 class T_RandomForestClassifier : public T_Classifier<classType>{
+using Dataset = vector<T_Sample<classType>>;
+using ProbClass = map<classType,double>;
 protected:
     class DecisionTree {
-    using Dataset = vector<T_Sample<classType>>;
     private:
         struct Node {
             int featureIndex;
             std::shared_ptr<Node> left;
             std::shared_ptr<Node> right;
             float threshold;
-            double prob;
-            classType label;
+            ProbClass prob;
             bool isLeaf;
             Node(bool isLeaf,int featureIndex = -1, float threshold = 0,std::shared_ptr<Node> l = nullptr,std::shared_ptr<Node> r = nullptr):
-                isLeaf(isLeaf),left(l),right(r),prob(0.0),featureIndex(featureIndex),threshold(threshold) {}
+                isLeaf(isLeaf),left(l),right(r),featureIndex(featureIndex),threshold(threshold) {}
         };
         std::shared_ptr<Node> root;
         int featureNum;
@@ -637,6 +637,14 @@ protected:
             sort(samplesFeaturesVec.begin(), samplesFeaturesVec.end(), 
             [](pair<int,double>& a, pair<int, double>& b) {return a.second < b.second;});
         }
+        ProbClass computeTargetProb(const Dataset &dataset,const vector<int> &dataIndex){
+            ProbClass resProb;
+            for (vector<int>::const_iterator index = dataIndex.begin(); index != dataIndex.end(); index++)
+                resProb[dataset[*index].getLabel()]++;
+            for (typename ProbClass::iterator prob = resProb.begin(); prob != resProb.end(); prob++)
+                prob->second /= dataIndex.size();
+            return resProb;
+        }
         void chooseBestSplitFeatures(const Dataset &dataset,const vector<int> &dataIndex,int& featureIndex,double& threshold){
             std::set<int> featureBucket;
             vector<int> featuresVec;
@@ -674,16 +682,15 @@ protected:
             threshold = bestThreshold;                          
         }
         std::shared_ptr<Node> constructNode(const Dataset &dataset,vector<int> dataIndex,int depth){
-            if (depth >= maxDepth) {
+            ProbClass targetProb = computeTargetProb(dataset, dataIndex);
+            bool pureNode = false;
+            const double eps = 1e-6;
+            for (typename ProbClass::iterator prob = targetProb.begin(); prob != targetProb.end(); prob++)
+                if (std::abs(prob->second-1) < eps)
+                    pureNode = true;
+            if (pureNode || depth >= maxDepth || dataIndex.size() < minSamplesSplit) {
                 std::shared_ptr<Node> leaf = std::make_shared<Node>(true);
-                // Assign the most common class in this node
-                map<classType, int> labelCounts;
-                for (typename Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++)
-                    ++labelCounts[it->getLabel()];
-                leaf->label = std::max_element(labelCounts.begin(), labelCounts.end(),
-                                                    [](const pair<classType, int>& a, const pair<classType, int>& b) {
-                                                        return a.second < b.second;
-                                                    })->first;
+                leaf->prob = targetProb;
                 return leaf;
             }
             int featureIndex;
@@ -693,7 +700,7 @@ protected:
             splitSamplesVec(dataset,dataIndex,featureIndex,threshold,leftIndex,rightIndex);
             if ((leftIndex.size() < minSamplesLeaf) or (rightIndex.size() < minSamplesLeaf)) {
                 std::shared_ptr<Node> node = std::make_shared<Node>(true,featureIndex,threshold);
-                node->label = targetProb;
+                node->prob = targetProb;
                 return node;
             } else
                 return std::make_shared<Node>(false,featureIndex,threshold,
@@ -710,7 +717,7 @@ protected:
                 dataIndex[i] = i;
             root = constructNode(dataset,dataIndex,0);
         }
-        classType predict(const vFloat& x){
+        ProbClass predict(const vFloat& x){
             std::shared_ptr<Node> node = root;
             while (!node->isLeaf) {
                 if (x[node->featureIndex] <= node->threshold)
@@ -718,7 +725,7 @@ protected:
                 else
                     node = node -> right;
             }
-            return node->label;
+            return node->prob;
         }
     };
     using DecisionTreeList = vector<std::unique_ptr<DecisionTree>>;
@@ -726,7 +733,7 @@ protected:
     int nEstimators,eachTreeSamplesNum;
     int maxDepth,minSamplesSplit,minSamplesLeaf;
 public:
-    T_RandomForestClassifier(int nEstimators = 10,int maxDepth = 5, int minSamplesSplit = 2, int minSamplesLeaf = 1, int eachTreeSamplesNum = 1000000)
+    T_RandomForestClassifier(int nEstimators = 5,int maxDepth = 10, int minSamplesSplit = 2, int minSamplesLeaf = 1, int eachTreeSamplesNum = 1000000)
      : nEstimators(nEstimators),maxDepth(maxDepth),eachTreeSamplesNum(eachTreeSamplesNum),
         minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf) {
         decisionTrees.reserve(nEstimators);
@@ -735,10 +742,11 @@ public:
     ~T_RandomForestClassifier(){}
     virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        map<classType, int> votes;
+        ProbClass votes;
         for (typename DecisionTreeList::iterator tree = decisionTrees.begin(); tree != decisionTrees.end(); tree++){
-            classType label = (*tree)->predict(x);
-            votes[label]++;
+            ProbClass singleVote = (*tree)->predict(x);
+            for (typename ProbClass::iterator prob = singleVote.begin(); prob != singleVote.end(); prob++)
+                votes[prob->first] += prob->second;
         }
         return std::max_element(votes.begin(), votes.end(),
             [](const auto& a, const auto& b) { return a.second < b.second; })->first;
