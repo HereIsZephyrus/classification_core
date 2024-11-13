@@ -582,112 +582,121 @@ template <class classType>
 class T_RandomForestClassifier : public T_Classifier<classType>{
 protected:
     class DecisionTree {
-    public:
-        DecisionTree(classType unclassified,int maxDepth) : unclassified(unclassified),maxDepth(maxDepth) {}
-        void train(const vector<vFloat>& X, const vector<classType>& y) {
-            this->X = X;
-            this->y = y;
-            root = buildTree(0);
-        }
-        classType predict(const vFloat& sample){return traverseTree(root, sample);}
+    using std::shared_ptr;
+    using Dataset = vector<T_Sample<classType>>;
     private:
         struct Node {
-            int featureIndex = -1;
-            double threshold = 0;
+            int featureIndex;
+            shared_ptr<Node> left;
+            shared_ptr<Node> right;
+            float threshold;
+            double prob;
             classType label;
-            Node* left = nullptr;
-            Node* right = nullptr;
+            bool isLeaf;
+            Node(bool isLeaf,shared_ptr<Node> l = nullptr,shared_ptr<Node> r = nullptr,int featureIndex = -1, float threshold = 0):
+                isLeaf(isLeaf),left(l),right(r),prob(0.0),featureIndex(featureIndex),threshold(threshold) {}
         };
-        Node* root;
+        shared_ptr<Node> root;
+        int featureNum;
         int maxDepth;
-        classType unclassified;
-        vector<vFloat> X;
-        vector<classType> y;
-        Node* buildTree(int depth) {
-            // Base case: if all labels are the same or max depth reached
-            if (depth >= maxDepth || std::all_of(y.begin(), y.end(), [&](classType label) { return label == y[0]; }))
-                return new Node{ -1, 0, y[0] }; // Return a leaf node
-            // Find the best split
-            int bestFeature = -1;
-            double bestThreshold = 0;
-            int bestGain = -1;
-            for (size_t featureIndex = 0; featureIndex < X[0].size(); featureIndex++){
-                // Collect potential thresholds
-                vFloat thresholds;
-                for (vector<vFloat>::iterator sample = X.begin(); sample != X.end(); sample++)
-                    thresholds.push_back((*sample)[featureIndex]);
-                std::sort(thresholds.begin(), thresholds.end());
-                thresholds.erase(std::unique(thresholds.begin(), thresholds.end()), thresholds.end());
-                for (vFloat::iterator threshold = thresholds.begin(); threshold != thresholds.end(); threshold++) {
-                    vector<int> leftLabels, rightLabels;
-                    for (size_t i = 0; i < X.size(); ++i) {
-                        if (X[i][featureIndex] <= *threshold)
-                            leftLabels.push_back(y[i]);
-                        else
-                            rightLabels.push_back(y[i]);
-                    }
-                    int gain = calculateGain(leftLabels, rightLabels);
-                    if (gain > bestGain) {
-                        bestGain = gain;
-                        bestFeature = featureIndex;
-                        bestThreshold = *threshold;
-                    }
-                }
+        int minSamplesSplit,minSamplesLeaf;
+        double computeGini(int& sideTrue, int& sideSize) {
+            double trueProb = (sideTrue * 1.0) / (sideSize + 0.00000001);
+            return (1 - trueProb * trueProb - (1 - trueProb) * (1 - trueProb));
+        }
+        double computeGiniIndex(int& leftTrue, int& leftSize, int& rightTrue, int& rightSize) {
+            double leftProb = (leftSize * 1.0) / (leftSize + rightSize);
+            double rightprob = (rightSize * 1.0) / (leftSize + rightSize);
+            return leftProb * computeGini(leftTrue, leftSize)
+                + rightprob * computeGini(rightTrue, rightSize);
+        }
+        int maxFeature(int num) {return int(std::sqrt(num));}
+        set<double> getValuesRange(int &featureIndex,
+                                vector<int> &indexVec,
+                                Dataset &Dataset);
+        double computeTargetProb(const vector<int> &indexVec,const Dataset &dataset) {
+            double num = 0;
+            for (const vector<int>::const_iterator index = indexVec.begin(); index != indexVec.end(); index++)
+                num += Dataset[*index].getLabel();
+            return num / double(indexVec.size());
+        }
+        void splitSamplesVec(int &featureIndex, double &threshold,
+                            vector<int> &indexVec, vector<int> &samplesLeft,
+                            vector<int> &samplesRight, Dataset &Dataset);
+        void chooseBestSplitFeatures(shared_ptr<Node> &node,
+                                    vector<int> &indexVec,
+                                    Dataset &Dataset);
+        float fetchThreshold(const Dataset &dataset,int index){
+            const vFloat& features = dataset[rand() % dataset.size()]->getFeatures();
+            return features[index];
+        }
+        shared_ptr<Node> constructNode(const Dataset &dataset,int depth){
+            if (depth > maxDepth || dataset.empty()) {
+                shared_ptr<Node> leaf = std::make_shared<Node>(true);
+                // Assign the most common class in this node
+                std::map<classType, int> labelCounts;
+                for (Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++)
+                    ++labelCounts[it->getLabel()];
+                leaf->classLabel = std::max_element(labelCounts.begin(), labelCounts.end(),
+                                                    [](const std::pair<classType, int>& a, const std::pair<classType, int>& b) {
+                                                        return a.second < b.second;
+                                                    })->first;
+                return leaf;
             }
-            if (bestGain == -1)
-                return new Node{ -1, 0, y[0] }; // Create a leaf node
-            // Split datasets
-            vector<vFloat> leftX, rightX;
-            vector<int> leftY, rightY;
-            for (size_t i = 0; i < X.size(); ++i)
-                if (X[i][bestFeature] <= bestThreshold) {
-                    leftX.push_back(X[i]);
-                    leftY.push_back(y[i]);
-                } else {
-                    rightX.push_back(X[i]);
-                    rightY.push_back(y[i]);
-                }
-            Node* node = new Node{ bestFeature, bestThreshold, unclassified};
-            node->left = buildTree(depth + 1);
-            node->right = buildTree(depth + 1);
+            int featureIndex = rand() % featureNum;
+            float threshold = fetchThreshold(dataset,featureIndex);
+            Dataset leftData, rightData;
+            std::vector<int> leftLabels, rightLabels;
+            for (Dataset::const_iterator data = dataset.begin(); data != dataset.end(); data++){
+                if (data->getFeatures()[featureIndex] < threshold)
+                    leftData.push_back(*data);
+                else
+                    rightData.push_back(*data);
+            }
+            shared_ptr<Node> node = std::make_shared<Node>( false,buildTree(leftData, leftLabels, depth + 1),
+                                                            buildTree(rightData, rightLabels, depth + 1),
+                                                            featureIndex,threshold);
             return node;
         }
-        classType traverseTree(Node* node, const vFloat& sample) {
-            if (node->label != -1)
-                return node->label; // Leaf node
-            if (sample[node->featureIndex] <= node->threshold)
-                return traverseTree(node->left, sample);
-            else
-                return traverseTree(node->right, sample);
+
+    public:
+        DecisionTree(int featureNum,int maxDepth,int minSamplesSplit,int minSamplesLeaf)
+            :featureNum(featureNum),maxDepth(maxDepth),minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf){};
+
+        void train(Dataset &dataset){
+            srand(time(0));
+            root = constructNode(dataset, 0);
         }
-        int calculateGain(const vector<int>& leftLabels, const vector<int>& rightLabels) {
-            // Implement simple gain calculation (Gini impurity or entropy)
-            int leftSize = leftLabels.size();
-            int rightSize = rightLabels.size();
-            int totalSize = leftSize + rightSize;
-            if (totalSize == 0) return 0;
-            double leftImpurity = calculateImpurity(leftLabels);
-            double rightImpurity = calculateImpurity(rightLabels);
-            return (leftImpurity * leftSize + rightImpurity * rightSize);
-        }
-        double calculateImpurity(const vector<int>& labels) {
-            std::map<int, int> counts;
-            for (int label : labels) {
-                counts[label]++;
-            }
-            double impurity = 1.0;
-            for (const auto& count : counts) {
-                double prob = static_cast<double>(count.second) / labels.size();
-                impurity -= prob * prob;
-            }
-            return impurity;
-        }
+
+        double computeProb(int sampleIndex, Dataset &Dataset);
+
+        void predictProba(Dataset &Dataset, vector<double> &results);
     };
-    int nTrees;
+    vector<DecisionTree> decisionTrees;
+    int nEstimators;
+    string criterion;
+    string maxFeatures;
     int maxDepth;
-    vector<DecisionTree> trees;
+    int minSamplesSplit;
+    int minSamplesLeaf;
+    int eachTreeSamplesNum;
+    int nJobs;
 public:
-    T_RandomForestClassifier(int nTrees, int maxDepth) : nTrees(nTrees), maxDepth(maxDepth) {this->outputPhotoName = "rf.png";}
+    T_RandomForestClassifier(int nEstimators = 10, string criterion = "gini",
+                 string maxFeatures = "auto", int maxDepth = -1,
+                 int minSamplesSplit = 2, int minSamplesLeaf = 1,
+                 int eachTreeSamplesNum = 1000000,
+                 int nJobs = 1) : nEstimators(nEstimators),
+                                  criterion(std::move(criterion)),
+                                  maxFeatures(maxFeatures),
+                                  maxDepth(maxDepth),
+                                  minSamplesSplit(minSamplesSplit),
+                                  minSamplesLeaf(minSamplesLeaf),
+                                  nJobs(nJobs),
+                                  eachTreeSamplesNum(eachTreeSamplesNum) {
+                    decisionTrees.reserve(nEstimators);
+                    this->outputPhotoName = "rf.png";
+                }
     ~T_RandomForestClassifier(){}
     virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
