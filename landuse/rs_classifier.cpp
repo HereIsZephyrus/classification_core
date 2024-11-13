@@ -188,32 +188,29 @@ void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
     this->featureNum = dataset[0].getFeatures().size(); //select all
     unsigned int classNum = getClassNum();
-    std::vector<vFloat> waterPN,classCount[classNum];
-    std::vector<int> waterLabel;
+    std::vector<vFloat> greenlandPN,classCount[classNum];
+    std::vector<int> greenlandLabel;
     int selectTag = 0;
     for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
         if (!it->isTrainSample())
             continue;
         unsigned int classID = static_cast<unsigned int>(it->getLabel());
-        if (it->getLabel() == LandCover::Water){
-            waterPN.push_back(it->getFeatures());
-            waterLabel.push_back(1);
+        if (it->getLabel() == LandCover::Greenland){
+            greenlandPN.push_back(it->getFeatures());
+            greenlandLabel.push_back(1);
         }else{
-            if (!selectTag){
-                waterPN.push_back(it->getFeatures());
-                waterLabel.push_back(-1);
-            }
-            selectTag = (selectTag+1)%5;
+            greenlandPN.push_back(it->getFeatures());
+            greenlandLabel.push_back(-1);
         }
         classCount[classID].push_back(it->getFeatures());
     }
-    OVOSVM waterClassifier = OVOSVM(LandCover::Water,LandCover::UNCLASSIFIED);
-    waterClassifier.train(waterPN,waterLabel);
-    classifiers.push_back(waterClassifier);
-    unsigned int waterID = static_cast<unsigned int>(LandCover::Water);
+    OVOSVM greenlandClassifier = OVOSVM(LandCover::Greenland,LandCover::UNCLASSIFIED);
+    greenlandClassifier.train(greenlandPN,greenlandLabel);
+    classifiers.push_back(greenlandClassifier);
+    unsigned int greenlandID = static_cast<unsigned int>(LandCover::Greenland);
     for (unsigned int i = 0; i < classNum; i++)
         for (unsigned int j = i+1; j < classNum; j++){
-            if (i == waterID || j == waterID)
+            if (i == greenlandID || j == greenlandID)
                 continue;
             std::vector<vFloat> classPN = classCount[i];
             std::vector<int> classLabeli,classLabelj;
