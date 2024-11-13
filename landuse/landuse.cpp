@@ -68,7 +68,7 @@ int LanduseMain(){
         cv::destroyWindow("BP");
     }
     {
-        land_RandomClassifier* randomforest = new land_RandomClassifier();
+        land_RandomForestClassifier* randomforest = new land_RandomForestClassifier();
         randomforest->Train(dataset);
         std::vector<std::vector<LandCover>> pixelClasses;
         randomforest->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);

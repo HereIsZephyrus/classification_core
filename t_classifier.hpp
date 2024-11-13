@@ -14,6 +14,8 @@
 
 constexpr int defaultClassifierKernelSize = 9;
 using std::vector;
+using std::pair;
+using std::map;
 template <typename classType>
 class T_StaticPara{
     vector<vFloat> avg,var;
@@ -583,76 +585,74 @@ template <class classType>
 class T_RandomForestClassifier : public T_Classifier<classType>{
 protected:
     class DecisionTree {
-    using std::shared_ptr;
     using Dataset = vector<T_Sample<classType>>;
     private:
         struct Node {
             int featureIndex;
-            shared_ptr<Node> left;
-            shared_ptr<Node> right;
+            std::shared_ptr<Node> left;
+            std::shared_ptr<Node> right;
             float threshold;
             double prob;
             classType label;
             bool isLeaf;
-            Node(bool isLeaf,int featureIndex = -1, float threshold = 0,shared_ptr<Node> l = nullptr,shared_ptr<Node> r = nullptr):
+            Node(bool isLeaf,int featureIndex = -1, float threshold = 0,std::shared_ptr<Node> l = nullptr,std::shared_ptr<Node> r = nullptr):
                 isLeaf(isLeaf),left(l),right(r),prob(0.0),featureIndex(featureIndex),threshold(threshold) {}
         };
-        shared_ptr<Node> root;
+        std::shared_ptr<Node> root;
         int featureNum;
         int maxDepth;
         int minSamplesSplit,minSamplesLeaf;
         double computeGiniIndex(const Dataset& dataset,vector<pair<int, double>> samplesFeaturesVec,size_t splitIndex) {
-            std::map<classType,int> leftCounter,rightCounter;
+            map<classType,int> leftCounter,rightCounter;
             for (size_t index = 0; index < splitIndex; index++)
                 leftCounter[dataset[samplesFeaturesVec[index].first].getLabel()]++;
             for (size_t index = splitIndex; index < samplesFeaturesVec.size(); index++)
                 rightCounter[dataset[samplesFeaturesVec[index].first].getLabel()]++;
-            size_t leftSize = leftCounter.size(), rightCounter = rightLabel.size();
+            size_t leftSize = leftCounter.size(), rightSize = rightCounter.size();
             size_t totalSize = leftSize + rightSize;
             double leftGini = 0.0,rightGini = 0.0;
-            for (std::map<classType,int>::const_iterator label = leftLabel.begin(); label != leftLabel.end(); label++)
+            for (typename map<classType,int>::const_iterator label = leftCounter.begin(); label != leftCounter.end(); label++)
                 leftGini += (double)((label->second) * (label->second) / (totalSize * totalSize));
-            for (std::map<classType,int>::const_iterator label = rightLabel.begin(); label != rightLabel.end(); label++)
+            for (typename map<classType,int>::const_iterator label = rightCounter.begin(); label != rightCounter.end(); label++)
                 rightGini += (double)((label->second) * (label->second) / (totalSize * totalSize));
             double leftProb = (double)(leftSize/totalSize),rightprob = (double)(rightSize/totalSize);
             return leftProb * leftGini + rightprob * rightGini;
         }
         int maxFeature(int num) {return int(std::sqrt(num));}
-        double computeTargetProb(const vector<int> &indexVec,const Dataset &dataset) {
-            double num = 0;
-            for (const vector<int>::const_iterator index = indexVec.begin(); index != indexVec.end(); index++)
-                num += Dataset[*index].getLabel();
-            return num / double(indexVec.size());
-        }
         void splitSamplesVec(const Dataset &dataset,const vector<int> &dataIndex,
             int &featureIndex, double &threshold,
             vector<int> &leftDataIndex,vector<int> &rightDataIndex){
             leftDataIndex.clear();
             rightDataIndex.clear();
             for (vector<int>::const_iterator index = dataIndex.begin(); index != dataIndex.end(); index++){
-                if (dataset[*index].getFeature()[featureIndex] <= threshold)
-                    leftDataindex.push_back(*index);
+                if (dataset[*index].getFeatures()[featureIndex] <= threshold)
+                    leftDataIndex.push_back(*index);
                 else
-                    rightDataindex.push_back(*index);
+                    rightDataIndex.push_back(*index);
             }
         }
         void sortByFeatures(const Dataset& dataset,int featureIndex,vector<pair<int, double>>& samplesFeaturesVec) {
             for (vector<pair<int, double>>::iterator sample = samplesFeaturesVec.begin(); sample != samplesFeaturesVec.end(); sample++)
-                sample->second = dataset[sample->first].getFeature()[featureIndex];
+                sample->second = dataset[sample->first].getFeatures()[featureIndex];
             sort(samplesFeaturesVec.begin(), samplesFeaturesVec.end(), 
-            [](pair<int,float>& a, pair<int, float>& b) {return a.second < b.second;});
+            [](pair<int,double>& a, pair<int, double>& b) {return a.second < b.second;});
         }
         void chooseBestSplitFeatures(const Dataset &dataset,const vector<int> &dataIndex,int& featureIndex,double& threshold){
+            std::set<int> featureBucket;
             vector<int> featuresVec;
-            for (int i = 0; i < featureNum; i++)
-                featuresVec.push_back(i);
-            random_shuffle(featuresVec.begin(),featuresVec.end());
-            featuresVec = vector<int>(featuresVec.begin(),featuresVec.begin() + maxFeature(featuresVec.size()));
+            int maxFeatureNum = maxFeature(dataIndex.size());
+            int featureNum = dataset[0].getFeatures().size();
+            while (featureBucket.size() < maxFeatureNum){
+                int index = rand() % featureNum;
+                featureBucket.insert(index);
+            }
+            for (std::set<int> ::const_iterator feature = featureBucket.begin(); feature != featureBucket.end(); feature++)
+                featuresVec.push_back(*feature);
             int bestFeatureIndex = featuresVec[0];
             float minValue = 1e6, bestThreshold = 0;
             vector<pair<int, double>> samplesFeaturesVec(dataIndex.size());
             for (size_t i = 0; i < dataIndex.size(); i++)
-                samplesFeaturesVec[i] = std::make_pair([dataIndex[i],0);
+                samplesFeaturesVec[i] = std::make_pair(dataIndex[i],0);
             for (vector<int>::const_iterator feature = featuresVec.begin(); feature != featuresVec.end(); feature++) {
                 sortByFeatures(dataset,*feature,samplesFeaturesVec);
                 int index = 0;
@@ -672,28 +672,27 @@ protected:
             }
             featureIndex = bestFeatureIndex;
             threshold = bestThreshold;                          
-        );
-        shared_ptr<Node> constructNode(const Dataset &dataset,vector<int> dataIndex,int depth){
+        }
+        std::shared_ptr<Node> constructNode(const Dataset &dataset,vector<int> dataIndex,int depth){
             if (depth >= maxDepth) {
-                shared_ptr<Node> leaf = std::make_shared<Node>(true);
+                std::shared_ptr<Node> leaf = std::make_shared<Node>(true);
                 // Assign the most common class in this node
-                std::map<classType, int> labelCounts;
-                for (Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++)
+                map<classType, int> labelCounts;
+                for (typename Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++)
                     ++labelCounts[it->getLabel()];
-                leaf->classLabel = std::max_element(labelCounts.begin(), labelCounts.end(),
-                                                    [](const std::pair<classType, int>& a, const std::pair<classType, int>& b) {
+                leaf->label = std::max_element(labelCounts.begin(), labelCounts.end(),
+                                                    [](const pair<classType, int>& a, const pair<classType, int>& b) {
                                                         return a.second < b.second;
                                                     })->first;
                 return leaf;
             }
-            int featureIndex = rand() % featureNum;
-            float threshold = fetchThreshold(dataset,featureIndex);
-            Dataset leftData, rightData;
+            int featureIndex;
+            double threshold;
             vector<int> leftIndex, rightIndex;
             chooseBestSplitFeatures(dataset,dataIndex,featureIndex,threshold);
-            splitSamplesVec(dataset,dataindex,featureIndex,threshold,leftIndex,rightIndex);
+            splitSamplesVec(dataset,dataIndex,featureIndex,threshold,leftIndex,rightIndex);
             if ((leftIndex.size() < minSamplesLeaf) or (rightIndex.size() < minSamplesLeaf)) {
-                shared_ptr<Node> node = std::make_shared<Node>(true,featureIndex,threshold);
+                std::shared_ptr<Node> node = std::make_shared<Node>(true,featureIndex,threshold);
                 node->label = targetProb;
                 return node;
             } else
@@ -704,12 +703,15 @@ protected:
     public:
         DecisionTree(int featureNum,int maxDepth,int minSamplesSplit,int minSamplesLeaf)
             :featureNum(featureNum),maxDepth(maxDepth),minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf){};
-        void train(Dataset &dataset){
+        void train(const Dataset &dataset){
             srand(time(0));
-            root = constructNode(dataset, 0);
+            vector<int> dataIndex(dataset.size());
+            for (size_t i = 0; i < dataIndex.size(); i++)
+                dataIndex[i] = i;
+            root = constructNode(dataset,dataIndex,0);
         }
-        classType predict(vFloat x){
-            shared_ptr<Node> node = root;
+        classType predict(const vFloat& x){
+            std::shared_ptr<Node> node = root;
             while (!node->isLeaf) {
                 if (x[node->featureIndex] <= node->threshold)
                     node = node -> left;
@@ -733,9 +735,9 @@ public:
     ~T_RandomForestClassifier(){}
     virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
-        std::map<classType, int> votes;
+        map<classType, int> votes;
         for (typename DecisionTreeList::iterator tree = decisionTrees.begin(); tree != decisionTrees.end(); tree++){
-            classType label = tree->predict(x);
+            classType label = (*tree)->predict(x);
             votes[label]++;
         }
         return std::max_element(votes.begin(), votes.end(),

@@ -261,7 +261,7 @@ void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
 void land_RandomForestClassifier::Train(const std::vector<land_Sample>& dataset){
     featureNum = dataset[0].getFeatures().size();
     for (int i = 0; i < nEstimators; i++){
-        std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(featureNum,maxDepth,minSampleSplit,minSamplesLeaf);
+        std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(featureNum,maxDepth,minSamplesSplit,minSamplesLeaf);
         tree->train(dataset);
         decisionTrees.push_back(std::move(tree));
     }
