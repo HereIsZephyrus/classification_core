@@ -7,6 +7,7 @@
 #include <ctime>
 #include <map>
 #include <memory>
+#include <algorithm>
 #include <Eigen/Dense>
 #include <opencv2/opencv.hpp>
 #include "func.hpp"
@@ -593,7 +594,7 @@ protected:
             double prob;
             classType label;
             bool isLeaf;
-            Node(bool isLeaf,shared_ptr<Node> l = nullptr,shared_ptr<Node> r = nullptr,int featureIndex = -1, float threshold = 0):
+            Node(bool isLeaf,int featureIndex = -1, float threshold = 0,shared_ptr<Node> l = nullptr,shared_ptr<Node> r = nullptr):
                 isLeaf(isLeaf),left(l),right(r),prob(0.0),featureIndex(featureIndex),threshold(threshold) {}
         };
         shared_ptr<Node> root;
@@ -611,27 +612,73 @@ protected:
                 + rightprob * computeGini(rightTrue, rightSize);
         }
         int maxFeature(int num) {return int(std::sqrt(num));}
-        set<double> getValuesRange(int &featureIndex,
-                                vector<int> &indexVec,
-                                Dataset &Dataset);
         double computeTargetProb(const vector<int> &indexVec,const Dataset &dataset) {
             double num = 0;
             for (const vector<int>::const_iterator index = indexVec.begin(); index != indexVec.end(); index++)
                 num += Dataset[*index].getLabel();
             return num / double(indexVec.size());
         }
-        void splitSamplesVec(int &featureIndex, double &threshold,
-                            vector<int> &indexVec, vector<int> &samplesLeft,
-                            vector<int> &samplesRight, Dataset &Dataset);
-        void chooseBestSplitFeatures(shared_ptr<Node> &node,
-                                    vector<int> &indexVec,
-                                    Dataset &Dataset);
-        float fetchThreshold(const Dataset &dataset,int index){
-            const vFloat& features = dataset[rand() % dataset.size()]->getFeatures();
-            return features[index];
+        void splitSamplesVec(const Dataset &dataset,const vector<int> &dataIndex,
+            int &featureIndex, double &threshold,
+            vector<int> &leftDataIndex,vector<int> &rightDataIndex){
+            leftDataIndex.clear();
+            rightDataIndex.clear();
+            for (vector<int>::const_iterator index = dataIndex.begin(); index != dataIndex.end(); index++){
+                if (dataset[*index].getFeature()[featureIndex] <= threshold)
+                    leftDataindex.push_back(*index);
+                else
+                    rightDataindex.push_back(*index);
+            }
         }
-        shared_ptr<Node> constructNode(const Dataset &dataset,int depth){
-            if (depth > maxDepth || dataset.empty()) {
+        void sortByFeatures(const Dataset& dataset,int featureIndex,vector<pair<int, double>>& samplesFeaturesVec) {
+            for (vector<pair<int, double>>::iterator sample = samplesFeaturesVec.begin(); sample != samplesFeaturesVec.end(); sample++)
+                sample->second = dataset[sample->first].getFeature()[featureIndex];
+            sort(samplesFeaturesVec.begin(), samplesFeaturesVec.end(), 
+            [](pair<int,double>& a, pair<int, double>& b) {return a.second < b.second;});
+        }
+        void chooseBestSplitFeatures(const Dataset &dataset,const vector<int> &dataIndex,int& featureIndex,double& threshold){
+            vector<int> featuresVec;
+            for (int i = 0; i < featureNum; i++)
+                featuresVec.push_back(i);
+            random_shuffle(featuresVec.begin(),featuresVec.end());
+            featuresVec = vector<int>(featuresVec.begin(),featuresVec.begin() + maxFeature(featuresVec.size()));
+            int bestFeatureIndex = featuresVec[0];
+            size_t samplesTrueNum = computeTure(dataIndex, dataset);
+            float minValue = 1e6, bestThreshold = 0;
+            vector<pair<int, float>> samplesFeaturesVec(dataIndex.size());
+            for (size_t i = 0; i < dataIndex.size(); i++)
+                samplesFeaturesVec[i] = std::make_pair(dataIndex[i],0);
+            for (auto featureIndex : featuresVec) {
+                sortByFeatures(dataset,featureIndex,samplesFeaturesVec);
+                size_t leftSize = 0, rightSize = dataIndex.size();
+                size_t leftTrue = 0, rightTrue = samplesTrueNum;
+                for (vector<pair<int, float>>::const_iterator sample = samplesFeaturesVec.begin(); sample != samplesFeaturesVec.end();){
+                    int sampleIndex = sample->first;
+                    float threshold = sample->second;
+                    while (sample != samplesFeaturesVec.end() && sample->second <= threshold) {
+                        leftSize++;
+                        rightSize--;
+                        if (dataset->getLabel() == 1) {
+                            leftTrue++;
+                            rightTrue--;
+                        }
+                        sample++;
+                        sampleIndex = sample->first;
+                    }
+                    if (sample == samplesFeaturesVec.end()) { continue; }
+                    double value = computeGiniIndex(leftTrue, leftSize, rightTrue, rightSize);
+                    if (value <= minValue) {
+                        minValue = value;
+                        bestThreshold = threshold;
+                        bestFeatureIndex = featureIndex;
+                    }
+                }
+            }
+            node->featureIndex = bestFeatureIndex;
+            node->threshold = bestThreshold;                          
+        );
+        shared_ptr<Node> constructNode(const Dataset &dataset,vector<int> dataIndex,int depth){
+            if (depth >= maxDepth) {
                 shared_ptr<Node> leaf = std::make_shared<Node>(true);
                 // Assign the most common class in this node
                 std::map<classType, int> labelCounts;
@@ -646,17 +693,16 @@ protected:
             int featureIndex = rand() % featureNum;
             float threshold = fetchThreshold(dataset,featureIndex);
             Dataset leftData, rightData;
-            std::vector<int> leftLabels, rightLabels;
-            for (Dataset::const_iterator data = dataset.begin(); data != dataset.end(); data++){
-                if (data->getFeatures()[featureIndex] < threshold)
-                    leftData.push_back(*data);
-                else
-                    rightData.push_back(*data);
-            }
-            shared_ptr<Node> node = std::make_shared<Node>( false,buildTree(leftData, leftLabels, depth + 1),
-                                                            buildTree(rightData, rightLabels, depth + 1),
-                                                            featureIndex,threshold);
-            return node;
+            vector<int> leftIndex, rightIndex;
+            chooseBestSplitFeatures(dataset,dataIndex,featureIndex,threshold);
+            splitSamplesVec(dataset,dataindex,featureIndex,threshold,leftIndex,rightIndex);
+            if ((leftIndex.size() < minSamplesLeaf) or (rightIndex.size() < minSamplesLeaf)) {
+                shared_ptr<Node> node = std::make_shared<Node>(true,featureIndex,threshold);
+                node->label = targetProb;
+                return node;
+            } else
+                return std::make_shared<Node>(false,featureIndex,threshold,
+                    constructNode(dataset,leftIndex,depth+1),constructNode(dataset,rightIndex,depth+1));
         }
 
     public:
@@ -672,36 +718,22 @@ protected:
 
         void predictProba(Dataset &Dataset, vector<double> &results);
     };
-    vector<DecisionTree> decisionTrees;
-    int nEstimators;
-    string criterion;
-    string maxFeatures;
-    int maxDepth;
-    int minSamplesSplit;
-    int minSamplesLeaf;
-    int eachTreeSamplesNum;
-    int nJobs;
+    using DecisionTreeList = vector<std::unique_ptr<DecisionTree>>;
+    DecisionTreeList decisionTrees;
+    int nEstimators,eachTreeSamplesNum;
+    int maxDepth,minSamplesSplit,minSamplesLeaf;
 public:
-    T_RandomForestClassifier(int nEstimators = 10, string criterion = "gini",
-                 string maxFeatures = "auto", int maxDepth = -1,
-                 int minSamplesSplit = 2, int minSamplesLeaf = 1,
-                 int eachTreeSamplesNum = 1000000,
-                 int nJobs = 1) : nEstimators(nEstimators),
-                                  criterion(std::move(criterion)),
-                                  maxFeatures(maxFeatures),
-                                  maxDepth(maxDepth),
-                                  minSamplesSplit(minSamplesSplit),
-                                  minSamplesLeaf(minSamplesLeaf),
-                                  nJobs(nJobs),
-                                  eachTreeSamplesNum(eachTreeSamplesNum) {
-                    decisionTrees.reserve(nEstimators);
-                    this->outputPhotoName = "rf.png";
-                }
+    T_RandomForestClassifier(int nEstimators = 10,int maxDepth = 5, int minSamplesSplit = 2, int minSamplesLeaf = 1, int eachTreeSamplesNum = 1000000)
+     : nEstimators(nEstimators),maxDepth(maxDepth),eachTreeSamplesNum(eachTreeSamplesNum),
+        minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf) {
+        decisionTrees.reserve(nEstimators);
+        this->outputPhotoName = "rf.png";
+    }
     ~T_RandomForestClassifier(){}
     virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
     classType Predict(const vFloat& x){
         std::map<classType, int> votes;
-        for (typename vector<DecisionTree>::iterator tree = trees.begin(); tree != trees.end(); tree++){
+        for (typename DecisionTreeList::iterator tree = decisionTrees.begin(); tree != decisionTrees.end(); tree++){
             classType label = tree->predict(x);
             votes[label]++;
         }

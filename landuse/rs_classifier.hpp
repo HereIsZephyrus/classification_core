@@ -60,10 +60,10 @@ class land_BPClassifier : public T_BPClassifier<weilaicheng::LandCover>{
 public:
     void Train(const std::vector<land_Sample>& dataset) override;
 };
-class land_RandomClassifier : public T_RandomForestClassifier<weilaicheng::LandCover>{
+class land_RandomForestClassifier : public T_RandomForestClassifier<weilaicheng::LandCover>{
     size_t getClassNum() const override{return weilaicheng::LandCover::CoverType;}
 public:
-    land_RandomClassifier() : T_RandomForestClassifier<weilaicheng::LandCover>(5,3){}
+    land_RandomForestClassifier() : T_RandomForestClassifier<weilaicheng::LandCover>(5,3){}
     void Train(const std::vector<land_Sample>& dataset) override;
 };
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const std::vector<std::vector<LandCover>>& pixelClasses);

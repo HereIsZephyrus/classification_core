@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <random>
 #include <algorithm>
+#include <memory>
 #include "rs_classifier.hpp"
 using namespace Eigen;
 template<>
@@ -257,22 +258,12 @@ void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
 		    break;
     }
 }
-void land_RandomClassifier::Train(const std::vector<land_Sample>& dataset){
-    for (int i = 0; i < nTrees; ++i) {
-        DecisionTree tree(LandCover::UNCLASSIFIED,maxDepth);
-        std::vector<vFloat> bootstrapX;
-        std::vector<LandCover> bootstrapY;
-        std::default_random_engine generator;
-        std::uniform_int_distribution<int> distribution(0, dataset.size() - 1);
-        for (std::vector<land_Sample>::const_iterator data = dataset.begin(); data != dataset.end(); data++) {
-            if (!data->isTrainSample())
-                continue;
-            int index = distribution(generator);
-            bootstrapX.push_back(data->getFeatures());
-            bootstrapY.push_back(data->getLabel());
-        }
-        tree.train(bootstrapX, bootstrapY);
-        trees.push_back(tree);
+void land_RandomForestClassifier::Train(const std::vector<land_Sample>& dataset){
+    featureNum = dataset[0].getFeatures().size();
+    for (int i = 0; i < nEstimators; i++){
+        std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(featureNum,maxDepth,minSampleSplit,minSamplesLeaf);
+        tree->train(dataset);
+        decisionTrees.push_back(std::move(tree));
     }
 }
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const std::vector<std::vector<LandCover>>& pixelClasses){
