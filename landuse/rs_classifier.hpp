@@ -28,7 +28,7 @@ enum Spectra : unsigned int{
     SpectralNum
 };
 typedef std::vector<LandCover> vCovers;
-extern std::string classFolderNames[LandCover::CoverType];
+extern std::unordered_map<LandCover,std::string> classFolderNames;
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 extern vFloat MAXVAL,MINVAL;
 }

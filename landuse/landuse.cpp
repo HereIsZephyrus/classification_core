@@ -24,7 +24,7 @@ int LanduseMain(){
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Naive Bayes", classified);
         bayes->Examine(dataset);
-        bayes->PrintPrecision();
+        bayes->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Naive Bayes");
     }
@@ -37,7 +37,7 @@ int LanduseMain(){
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Fisher", classified);
         fisher->Examine(dataset);
-        fisher->PrintPrecision();
+        fisher->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Fisher");
     }
@@ -50,7 +50,7 @@ int LanduseMain(){
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("SVM", classified);
         svm->Examine(dataset);
-        svm->PrintPrecision();
+        svm->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("SVM");
     }
@@ -63,7 +63,7 @@ int LanduseMain(){
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("BP", classified);
         bp->Examine(dataset);
-        bp->PrintPrecision();
+        bp->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("BP");
     }
@@ -76,7 +76,7 @@ int LanduseMain(){
         GenerateClassifiedImage(rawImage,classified,pixelClasses);
         cv::imshow("Random Forest", classified);
         randomforest->Examine(dataset);
-        randomforest->PrintPrecision();
+        randomforest->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Random Forest");
     }
@@ -92,7 +92,7 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
     srand(time(0));
     std::string suitFolderPath = "../landuse/sampling/";
     for (unsigned int classID = 0; classID < LandCover::CoverType; classID++){
-        std::string classFolderPath = suitFolderPath + classFolderNames[classID] + "/";
+        std::string classFolderPath = suitFolderPath + classFolderNames[static_cast<LandCover>(classID)] + "/";
         if (!fs::exists(classFolderPath))
             continue;
         for (const auto& entry : fs::recursive_directory_iterator(classFolderPath)) {
@@ -122,7 +122,7 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
                 data.push_back(var[i][d]);
             }
             //bool isTrain = (rand()%10) <= (trainRatio*10);
-            bool isTrain = (i * trainRatio) <= recordNum;
+            bool isTrain = i <= (recordNum * trainRatio);
             land_Sample sample(static_cast<LandCover>(classID),data,isTrain);
             dataset.push_back(sample);
         }

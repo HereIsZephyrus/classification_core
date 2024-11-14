@@ -9,13 +9,14 @@
 #include <memory>
 #include <algorithm>
 #include <Eigen/Dense>
+#include <fstream>
 #include <opencv2/opencv.hpp>
 #include "func.hpp"
 
 constexpr int defaultClassifierKernelSize = 9;
 using std::vector;
 using std::pair;
-using std::map;
+using std::unordered_map;
 using namespace Eigen;
 template <class classType>
 class T_StaticPara{
@@ -60,32 +61,37 @@ class T_Classifier{
 using Dataset = vector<T_Sample<classType>>;
 protected:
     size_t featureNum;
-    std::string outputPhotoName;
-    float precision,recall,f1;
+    std::string classifierName;
+    unordered_map<classType,float> precision,recall,f1;
 public:
+    T_Classifier(){classifierName = "classifier";}
     virtual classType Predict(const vFloat& x) = 0;
     virtual size_t getClassNum() const{return 0;}
     virtual void Train(const Dataset &dataset) = 0;
-    const std::string& printPhoto() const{return outputPhotoName;}
     void Examine(const Dataset& samples){
-        size_t TP = 0, FP = 0,FN = 0,testSampleNum = 0;
+        unordered_map<classType,int> TP,FP,FN;
         for (typename Dataset::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())
                 continue;
-            ++ testSampleNum;
-            if (Predict(it->getFeatures()) == it->getLabel())
-                TP++;
-            if (it->getLabel() == Predict(it->getFeatures()))
-                FP++;
+            classType trueLabel = it->getLabel(), predictLabel = Predict(it->getFeatures());
+            if (predictLabel == trueLabel)
+                ++TP[predictLabel];
+            else{
+                ++FP[predictLabel];
+                ++FN[trueLabel];
+            }
         }
-        precision = static_cast<float>(TP)/testSampleNum;
-        recall = static_cast<float>(FP)/testSampleNum;
-        f1 = 2*precision*recall/(precision+recall);
-    }
-    void PrintPrecision(){
-        std::cout << "Precision: " << precision << std::endl;
-        std::cout << "Recall: " << recall << std::endl;
-        std::cout << "F1: " << f1 << std::endl;
+        for (typename unordered_map<classType,int>::const_iterator tp = TP.begin(); tp != TP.end(); tp++){
+            if (FP.find(tp->first) != FP.end())
+                precision[tp->first] = static_cast<float>(tp->second)/(TP[tp->first]+FP[tp->first]);
+            else
+                precision[tp->first] = 1.0f;
+            if (FN.find(tp->first) != FP.end())
+                recall[tp->first] = static_cast<float>(tp->second)/(TP[tp->first]+FN[tp->first]);
+            else
+                recall[tp->first] = 1.0f;
+            f1[tp->first] = 2*precision[tp->first]*recall[tp->first]/(precision[tp->first]+recall[tp->first]);
+        }
     }
     void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize = defaultClassifierKernelSize){
         int classNum = getClassNum();
@@ -179,6 +185,27 @@ public:
             pixelClasses.push_back(temprow);
         }
     }
+    void printPhoto(const cv::Mat& classified,std::string path = "./") const{
+        std::string photoName = path + classifierName + std::string(".png");
+        cv::imwrite(photoName,classified);
+    }
+    void PrintPrecision(const unordered_map<classType,std::string>& classNames,std::string path = "./"){
+        std::string fileName = path + classifierName + std::string(".txt");
+        std::ofstream outFile(fileName);
+        outFile << "Precision: " << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
+            outFile << className->second << " : " << precision[className->first] << std::endl;
+        outFile << "Recall: " << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
+            outFile << className->second << " : " << recall[className->first] << std::endl;
+        outFile << "F1: "  << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
+            outFile << className->second << " : " << f1[className->first] << std::endl;
+    }
+    void Print(const cv::Mat& classified,const unordered_map<classType,std::string>& classNames,std::string path = "./"){
+        printPhoto(classified,path);
+        PrintPrecision(classNames,path);
+    }
 };
 struct BasicBayesParaList{
     float w;
@@ -238,7 +265,7 @@ protected:
         return res;
     }
 public:
-    T_NaiveBayesClassifier(){this->outputPhotoName = "naiveBayes.png";};
+    T_NaiveBayesClassifier(){this->classifierName = "naiveBayes";};
     ~T_NaiveBayesClassifier(){}
     void train(const Dataset& dataset,const float* classProbs) override{
         this->featureNum = dataset[0].getFeatures().size();
@@ -372,7 +399,7 @@ protected:
     }
     static constexpr float lambda = 0.0f;//regularization parameter
 public:
-    T_NonNaiveBayesClassifier(){this->outputPhotoName = "nonNaiveBayes.png";}
+    T_NonNaiveBayesClassifier(){this->classifierName = "nonNaiveBayes";}
     ~T_NonNaiveBayesClassifier(){
         for (vector<ConvBayesParaList>::const_iterator it = this->para.begin(); it != this->para.end(); it++){
             if(it->convMat != nullptr){
@@ -444,7 +471,7 @@ protected:
         }
     }
 public:
-    T_FisherClassifier() {this->outputPhotoName = "fisher.png";}
+    T_FisherClassifier() {this->classifierName = "fisher";}
     ~T_FisherClassifier(){}
     virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
@@ -574,7 +601,7 @@ protected:
     };
     vector<std::unique_ptr<OVOSVM>> classifiers;
 public:
-    T_SVMClassifier(){this->outputPhotoName = "svm.png";}
+    T_SVMClassifier(){this->classifierName = "svm";}
     ~T_SVMClassifier(){}
     virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
@@ -687,7 +714,7 @@ protected:
             }
     }
 public:
-    T_BPClassifier(int hiddensize = 20, double rate = 0.4, double mom = 0.8):classNum(0),hiddenSize(hiddensize),learningRate(rate),momentum(mom) {this->outputPhotoName = "bp.png";}
+    T_BPClassifier(int hiddensize = 20, double rate = 0.4, double mom = 0.8):classNum(0),hiddenSize(hiddensize),learningRate(rate),momentum(mom) {this->classifierName = "bp";}
     ~T_BPClassifier(){}
     virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
@@ -737,7 +764,7 @@ public:
 template <class classType>
 class T_RandomForestClassifier : public T_Classifier<classType>{
 using Dataset = vector<T_Sample<classType>>;
-using ProbClass = map<classType,double>;
+using ProbClass = unordered_map<classType,double>;
 protected:
     class DecisionTree {
     private:
@@ -756,16 +783,16 @@ protected:
         int maxDepth;
         int minSamplesSplit,minSamplesLeaf;
         double computeGiniIndex(const Dataset& dataset,vector<pair<int, double>> samplesFeaturesVec,size_t splitIndex) {
-            map<classType,int> leftCounter,rightCounter;
+            unordered_map<classType,int> leftCounter,rightCounter;
             size_t totalSize = samplesFeaturesVec.size();
             for (size_t index = 0; index < splitIndex; index++)
                 leftCounter[dataset[samplesFeaturesVec[index].first].getLabel()]++;
             for (size_t index = splitIndex; index < totalSize; index++)
                 rightCounter[dataset[samplesFeaturesVec[index].first].getLabel()]++;
             double leftGini = 0.0,rightGini = 0.0;
-            for (typename map<classType,int>::const_iterator label = leftCounter.begin(); label != leftCounter.end(); label++)
+            for (typename unordered_map<classType,int>::const_iterator label = leftCounter.begin(); label != leftCounter.end(); label++)
                 leftGini += (double)(label->second) * (label->second) / (double)(splitIndex * splitIndex);
-            for (typename map<classType,int>::const_iterator label = rightCounter.begin(); label != rightCounter.end(); label++)
+            for (typename unordered_map<classType,int>::const_iterator label = rightCounter.begin(); label != rightCounter.end(); label++)
                 rightGini += (double)(label->second) * (label->second) / (double)((totalSize - splitIndex) * (totalSize - splitIndex));
             return (double)(splitIndex/totalSize) * leftGini + (double)(1 - splitIndex/totalSize) * rightGini;
         }
@@ -883,7 +910,7 @@ public:
      : nEstimators(nEstimators),maxDepth(maxDepth),eachTreeSamplesNum(eachTreeSamplesNum),
         minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf) {
         decisionTrees.reserve(nEstimators);
-        this->outputPhotoName = "rf.png";
+        this->classifierName = "rf";
     }
     ~T_RandomForestClassifier(){}
     virtual void Train(const Dataset& dataset) override{

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <Eigen/Dense>
 #include <memory>
+#include <map>
 #include <fstream>
 #include <filesystem>
 #include "rs_classifier.hpp"
@@ -47,8 +48,12 @@ void land_StaticPara::Sampling(const std::string& entryPath){
 }
 namespace weilaicheng{
 vFloat MAXVAL(Spectra::SpectralNum * 2),MINVAL(Spectra::SpectralNum * 2);
-std::string classFolderNames[LandCover::CoverType] = 
-{"Water","Greenland","bareland","Imprevious"};
+std::unordered_map<LandCover,std::string> classFolderNames = {
+    {LandCover::Water,"Water"},
+    {LandCover::Greenland,"Greenland"},
+    {LandCover::Bareland,"Bareland"},
+    {LandCover::Imprevious,"Imprevious"},
+};
 std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::Water,cv::Scalar(255,0,0)}, // blue
     {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red

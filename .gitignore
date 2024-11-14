@@ -107,3 +107,11 @@ codegen/
 
 # Octave session info
 octave-workspace
+main
+/main.dSYM
+*.plist
+*.yml
+*.png
+*.txt
+/main.dSYM
+/landuse/landuse.dSYM
