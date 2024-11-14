@@ -1,19 +1,17 @@
 #ifndef TCLASSIFIER_HPP
 #define TCLASSIFIER_HPP
 #define CALC_EDGE false
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 #include <map>
 #include <memory>
-#include <algorithm>
 #include <Eigen/Dense>
-#include <fstream>
 #include <opencv2/opencv.hpp>
-#include "func.hpp"
 
-constexpr int defaultClassifierKernelSize = 9;
 using std::vector;
 using std::pair;
 using std::unordered_map;
@@ -46,7 +44,8 @@ class T_Sample{
         return static_cast<float>(sum / data.size());
     }
 public:
-    T_Sample(classType label,vFloat featureData, bool isTrainSample = true):label(label),features(featureData),isTrain(isTrainSample){}
+    T_Sample(classType label,vFloat featureData, bool isTrainSample = true)
+        :label(label),features(featureData),isTrain(isTrainSample){}
     ~T_Sample(){}
     classType getLabel() const{return label;}
     const vFloat& getFeatures() const{return features;}
@@ -63,6 +62,16 @@ protected:
     size_t featureNum;
     std::string classifierName;
     unordered_map<classType,float> precision,recall,f1;
+    bool CalcChannelMeanStds(const vector<cv::Mat> & channels, vFloat & data){
+        data.clear();
+        for (vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
+            cv::Scalar mean, stddev;
+            cv::meanStdDev(*it, mean, stddev);
+            data.push_back(cv::mean(*it)[0]);
+            data.push_back(stddev[0] * stddev[0]);
+        }
+        return true;
+    }
 public:
     T_Classifier(){classifierName = "classifier";}
     virtual classType Predict(const vFloat& x) = 0;
@@ -93,12 +102,12 @@ public:
             f1[tp->first] = 2*precision[tp->first]*recall[tp->first]/(precision[tp->first]+recall[tp->first]);
         }
     }
-    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize = defaultClassifierKernelSize){
+    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Scalar>& classifyColor){
         int classNum = getClassNum();
         using ClassMat = vector<vector<classType>>;
         using vClasses = vector<classType>;
         int rows = featureImage.rows, cols = featureImage.cols;
-        vector<vector<classType>> patchClasses;
+        vector<vector<classType>> patchClasses,pixelClasses;
         for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
             vClasses rowClasses;
             bool lastRowCheck = (r >= (rows - classifierKernelSize));
@@ -109,7 +118,7 @@ public:
                 vector<cv::Mat> channels;
                 cv::split(sample, channels);
                 vFloat data;
-                tcb::CalcChannelMeanStds(channels, data);
+                CalcChannelMeanStds(channels, data);
                 for (size_t i = 0; i < data.size(); i++)
                     data[i] = (data[i] - minVal[i])  / (maxVal[i] - minVal[i]);
                 rowClasses.push_back(Predict(data));
@@ -184,6 +193,20 @@ public:
             }
             pixelClasses.push_back(temprow);
         }
+        classified = cv::Mat::zeros(featureImage.rows, featureImage.cols, CV_8UC3);
+        classified.setTo(cv::Scalar(255,255,255));
+        int y = 0;
+        for (typename ClassMat::const_iterator row = pixelClasses.begin(); row != pixelClasses.end(); row++,y+=classifierKernelSize/2){
+            int x = 0;
+            for (typename vClasses::const_iterator col = row->begin(); col != row->end(); col++,x+=classifierKernelSize/2){
+                if (x >= featureImage.cols - classifierKernelSize/2)
+                    break;
+                cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
+                classified(window) = classifyColor.at(*col);
+            }
+            if (y >= featureImage.rows - classifierKernelSize/2)
+                break;
+        }
     }
     void printPhoto(const cv::Mat& classified,std::string path = "./") const{
         std::string photoName = path + classifierName + std::string(".png");
@@ -254,10 +277,10 @@ class T_NaiveBayesClassifier : public T_BayesClassifier<BasicBayesParaList,class
 using Dataset = vector<T_Sample<classType>>;
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x) override{
-        double res = this->para[static_cast<classType>(classID)].w;
+        double res = this->para[classID].w;
         for (unsigned int d = 0; d < this->featureNum; d++){
-            float pd = x[d] - this->para[static_cast<classType>(classID)].mu[d];
-            float vars = this->para[static_cast<classType>(classID)].sigma[d] * this->para[static_cast<classType>(classID)].sigma[d];
+            float pd = x[d] - this->para[classID].mu[d];
+            float vars = this->para[classID].sigma[d] * this->para[classID].sigma[d];
             double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
             double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
             res *= normalize * exponent;
@@ -320,99 +343,6 @@ public:
             */
         }
         return;
-    }
-};
-template <class classType>
-class T_NonNaiveBayesClassifier : public T_BayesClassifier<ConvBayesParaList,classType>{
-using Dataset = vector<T_Sample<classType>>;
-protected:
-    double CalculateClassProbability(unsigned int classID,const vFloat& x) override{
-        const unsigned int classNum = this->getClassNum();
-        double res = log(this->para[static_cast<classType>(classID)].w);
-        res -= log(determinant(this->para[classID].convMat))/2;
-        vFloat pd = x;
-        for (unsigned int d = 0; d < this->featureNum; d++)
-            pd[d] = x[d] - this->para[static_cast<classType>(classID)].mu[d];
-        vFloat sumX(this->featureNum, 0.0);
-        for (size_t i = 0; i < this->featureNum; i++)
-            for (size_t j = 0; j < this->featureNum; j++)
-                sumX[i] += x[j] * this->para[classID].invMat[i][j];
-        for (unsigned int d = 0; d < this->featureNum; d++){
-            float sum = 0.0f;
-            for (unsigned int j = 0; j < this->featureNum; j++)
-                sum += sumX[j] * x[j];
-            res -= sum / 2;
-        }
-        return res;
-    }
-    void CalcConvMat(fMat convMat,fMat invMat,const vector<vFloat>& bucket){
-        for (size_t i = 0; i < this->featureNum; i++){
-            convMat[i][i] = CalcConv(bucket[i],bucket[i]) + lambda;
-            for (size_t j = i+1; j < this->featureNum; j++){
-                double conv = CalcConv(bucket[i],bucket[j]);
-                convMat[i][j] = conv * (1.0f - lambda);
-                convMat[j][i] = conv * (1.0f - lambda);
-            }
-        }
-        tcb::CalcInvMat(convMat,invMat,this->featureNum);
-        return;
-    }
-    void LUdecomposition(fMat matrix, fMat L, fMat U){
-        for (int i = 0; i < this->featureNum; i++) { // init LU
-            for (int j = 0; j < this->featureNum; j++) {
-                L[i][j] = 0;
-                U[i][j] = matrix[i][j];
-            }
-            L[i][i] = 1;
-        }
-        for (int i = 0; i < this->featureNum; i++) { // LU decomposition
-            for (int j = i; j < this->featureNum; j++) 
-                for (int k = 0; k < i; ++k) 
-                    U[i][j] -= L[i][k] * U[k][j];
-            for (int j = i + 1; j < this->featureNum; j++) {
-                for (int k = 0; k < i; ++k)
-                    L[j][i] -= L[j][k] * U[k][i];
-                L[j][i] = U[j][i] / U[i][i];
-            }
-        }
-    }
-    double determinant(fMat matrix) {
-        fMat L = new float*[this->featureNum];
-        fMat U = new float*[this->featureNum];
-        for (size_t i = 0; i < this->featureNum; i++){
-            L[i] = new float[this->featureNum];
-            U[i] = new float[this->featureNum];
-            for (size_t j = 0; j < this->featureNum; j++)
-                L[i][j] = U[i][j] = 0;
-        }
-        LUdecomposition(matrix, L, U);
-        double det = 1.0;
-        for (int i = 0; i < this->featureNum; i++)
-            det *= U[i][i];
-        for (size_t i = 0; i < this->featureNum; i++){
-            delete[] L[i];
-            delete[] U[i];
-        }
-        delete[] L;
-        delete[] U;
-        return det;
-    }
-    static constexpr float lambda = 0.0f;//regularization parameter
-public:
-    T_NonNaiveBayesClassifier(){this->classifierName = "nonNaiveBayes";}
-    ~T_NonNaiveBayesClassifier(){
-        for (vector<ConvBayesParaList>::const_iterator it = this->para.begin(); it != this->para.end(); it++){
-            if(it->convMat != nullptr){
-                for(size_t i = 0;i < this->featureNum;i++)
-                    delete[] it->convMat[i];
-                delete[] it->convMat;
-            }
-            if(it->invMat != nullptr){
-                for(size_t i = 0;i < this->featureNum;i++)
-                    delete[] it->invMat[i];
-                delete[] it->invMat;
-            }
-        }
     }
 };
 template <class classType>
@@ -606,7 +536,7 @@ public:
     virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
         unsigned int classNum = this->getClassNum();
-        std::vector<int> classCount[classNum];
+        vector<int> classCount[classNum];
         for (size_t i = 0; i < dataset.size(); i++){
             const T_Sample<classType>& sample = dataset[i];
             if (!sample.isTrainSample())
@@ -616,8 +546,8 @@ public:
         }
         for (unsigned int i = 0; i < classNum; i++)
             for (unsigned int j = i+1; j < classNum; j++){
-                std::vector<int> classPN = classCount[i];
-                std::vector<int> classLabeli,classLabelj;
+                vector<int> classPN = classCount[i];
+                vector<int> classLabeli,classLabelj;
                 classLabeli.assign(classCount[i].size(),1);
                 classLabelj.assign(classCount[j].size(),-1);
                 classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
@@ -744,7 +674,7 @@ public:
             }
             TMSE = TMSE / (double)total;
             Tacc = Tacc / (double)total * 100.0;
-            if (TMSE < 0.05 || Tacc > 95)
+            if (TMSE < 0.02 || Tacc > 98)
                 break;
         }
     }

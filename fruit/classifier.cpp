@@ -43,13 +43,14 @@ void StaticPara::InitClassType(Classes ID){
 }
 template<>
 void StaticPara::Sampling(const std::string& entryPath){
+    using namespace fruit;
     cv::Mat patch = cv::imread(entryPath);
     if (patch.empty()){
         std::cerr << "Image not found!" << std::endl;
         return;
     }
     std::vector<cv::Mat> channels;
-    fruit::GenerateFeatureChannels(patch,channels);
+    GenerateFeatureChannels(patch,channels);
     const unsigned int patchRows = patch.rows, patchCols = patch.cols;
     for (unsigned int left = 0; left < patchCols - classifierKernelSize; left+=classifierKernelSize){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize; top+=classifierKernelSize){
@@ -191,7 +192,18 @@ void NonNaiveBayesClassifier::train(const std::vector<Sample>& samples,const flo
     }
     return;
 };
+bool CalcChannelMeanStds(const vector<cv::Mat> & channels, vFloat & data){
+    data.clear();
+    for (vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
+        cv::Scalar mean, stddev;
+        cv::meanStdDev(*it, mean, stddev);
+        data.push_back(cv::mean(*it)[0]);
+        data.push_back(stddev[0] * stddev[0]);
+    }
+    return true;
+}
 bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
+    using namespace fruit;
     int rows = rawimage.rows, cols = rawimage.cols;
     for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
         std::vector<Classes> rowClasses;
@@ -203,7 +215,7 @@ bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vec
             std::vector<cv::Mat> channels;
             vFloat data;
             fruit::GenerateFeatureChannels(sample, channels);
-            tcb::CalcChannelMeanStds(channels, data);
+            CalcChannelMeanStds(channels, data);
             rowClasses.push_back(classifer->Predict(data));
         }
         patchClasses.push_back(rowClasses);

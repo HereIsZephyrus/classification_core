@@ -18,10 +18,8 @@ int LanduseMain(){
     {
         land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
         bayes->Train(dataset);
-        std::vector<std::vector<LandCover>> pixelClasses;
-        bayes->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
-        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        bayes->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Naive Bayes", classified);
         bayes->Examine(dataset);
         bayes->Print(classified,classFolderNames);
@@ -31,10 +29,8 @@ int LanduseMain(){
     {
         land_FisherClassifier* fisher = new land_FisherClassifier();
         fisher->Train(dataset);
-        std::vector<std::vector<LandCover>> pixelClasses;
-        fisher->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
-        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        fisher->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Fisher", classified);
         fisher->Examine(dataset);
         fisher->Print(classified,classFolderNames);
@@ -44,10 +40,8 @@ int LanduseMain(){
     {
         land_SVMClassifier* svm = new land_SVMClassifier();
         svm->Train(dataset);
-        std::vector<std::vector<LandCover>> pixelClasses;
-        svm->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
-        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        svm->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("SVM", classified);
         svm->Examine(dataset);
         svm->Print(classified,classFolderNames);
@@ -57,10 +51,8 @@ int LanduseMain(){
     {
         land_BPClassifier* bp = new land_BPClassifier();
         bp->Train(dataset);
-        std::vector<std::vector<LandCover>> pixelClasses;
-        bp->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
-        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        bp->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("BP", classified);
         bp->Examine(dataset);
         bp->Print(classified,classFolderNames);
@@ -70,10 +62,8 @@ int LanduseMain(){
     {
         land_RandomForestClassifier* randomforest = new land_RandomForestClassifier();
         randomforest->Train(dataset);
-        std::vector<std::vector<LandCover>> pixelClasses;
-        randomforest->Classify(rawImage,pixelClasses,LandCover::Edge,MINVAL,MAXVAL);
         cv::Mat classified;
-        GenerateClassifiedImage(rawImage,classified,pixelClasses);
+        randomforest->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Random Forest", classified);
         randomforest->Examine(dataset);
         randomforest->Print(classified,classFolderNames);

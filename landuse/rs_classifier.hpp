@@ -31,6 +31,7 @@ typedef std::vector<LandCover> vCovers;
 extern std::unordered_map<LandCover,std::string> classFolderNames;
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 extern vFloat MAXVAL,MINVAL;
+constexpr int classifierKernelSize = 9;
 }
 typedef T_StaticPara<weilaicheng::LandCover> land_StaticPara;
 typedef T_Sample<weilaicheng::LandCover> land_Sample;

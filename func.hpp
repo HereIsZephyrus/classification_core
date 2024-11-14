@@ -19,10 +19,8 @@ bool BoxSmooth(cv::Mat &image,int xSize,int ySize);
 bool Erode(cv::Mat &image,int kernelSize);
 bool Dilate(cv::Mat &image,int kernelSize);
 bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry);
-bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data);
 bool CalcInvMat(float** const convMat,float ** invMat,const int num);
 bool CalcEigen(const std::vector<vFloat>& matrix, vFloat& eigVal, std::vector<vFloat>& eigVec, const int num);
 }
-double CalcConv(const vFloat& x, const vFloat& y);
 
 #endif

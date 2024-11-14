@@ -106,16 +106,6 @@ bool drawCircleDDA(cv::Mat &image, int h, int k, float rx,float ry) {
     }
     return true;
 }
-bool CalcChannelMeanStds(const std::vector<cv::Mat> & channels, vFloat & data){
-    data.clear();
-    for (std::vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
-        cv::Scalar mean, stddev;
-        cv::meanStdDev(*it, mean, stddev);
-        data.push_back(cv::mean(*it)[0]);
-        data.push_back(stddev[0] * stddev[0]);
-    }
-    return true;
-}
 bool CalcInvMat(float** const convMat,float ** invMat,int num){
     fMat augmented = new float*[num];
     for (size_t i = 0; i < num; i++)
@@ -213,17 +203,3 @@ bool CalcEigen(const std::vector<vFloat>& matrix, vFloat& eigVal, std::vector<vF
     return true;
 }
 }//namespace tcb
-double CalcConv(const vFloat& x, const vFloat& y){
-    double res = 0;
-    const size_t n = x.size();
-    double xAvg = 0.0f, yAvg = 0.0f;
-    for (size_t i = 0; i < n; i++){
-        xAvg += x[i];
-        yAvg += y[i];
-    }
-    xAvg /= n;    yAvg /= n;
-    for (size_t i = 0; i < n; i++)
-        res += (x[i] - xAvg) * (y[i] - yAvg);
-    res /= (n-1);
-    return res;
-}

@@ -12,6 +12,7 @@
 #include <filesystem>
 #include "rs_classifier.hpp"
 using namespace Eigen;
+using weilaicheng::classifierKernelSize;
 template<>
 void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
     recordNum = 0;
@@ -22,7 +23,6 @@ void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
 }
 template<>
 void land_StaticPara::Sampling(const std::string& entryPath){
-    const int classifierKernelSize = defaultClassifierKernelSize;
     using namespace weilaicheng;
     std::vector<cv::Mat> channels;
     cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);
@@ -138,25 +138,5 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             classifier->train(dataset,classPN,classLabeli);
             classifiers.push_back(std::move(classifier));
         }
-}
-bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const std::vector<std::vector<LandCover>>& pixelClasses){
-    using ClassMat = std::vector<std::vector<LandCover>>;
-    using vClasses = std::vector<LandCover>;
-    const int classifierKernelSize = defaultClassifierKernelSize;
-    classified = cv::Mat::zeros(rawimage.rows, rawimage.cols, CV_8UC3);
-    classified.setTo(classifyColor[LandCover::UNCLASSIFIED]);
-    int y = 0;
-    for (ClassMat::const_iterator row = pixelClasses.begin(); row != pixelClasses.end(); row++,y+=classifierKernelSize/2){
-        int x = 0;
-        for (vClasses::const_iterator col = row->begin(); col != row->end(); col++,x+=classifierKernelSize/2){
-            if (x >= rawimage.cols - classifierKernelSize/2)
-                break;
-            cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
-            classified(window) = classifyColor[*col];
-        }
-        if (y >= rawimage.rows - classifierKernelSize/2)
-            break;
-    }
-    return true;
 }
 }
