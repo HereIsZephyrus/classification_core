@@ -213,7 +213,6 @@ bool CalcEigen(const std::vector<vFloat>& matrix, vFloat& eigVal, std::vector<vF
     return true;
 }
 }//namespace tcb
-namespace bayes{
 double CalcConv(const vFloat& x, const vFloat& y){
     double res = 0;
     const size_t n = x.size();
@@ -228,4 +227,3 @@ double CalcConv(const vFloat& x, const vFloat& y){
     res /= (n-1);
     return res;
 }
-}//namespace bayes

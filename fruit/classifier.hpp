@@ -46,24 +46,20 @@ typedef std::vector<Classes> vClasses;
 using namespace fruit;
 typedef T_StaticPara<Classes> StaticPara;
 typedef T_Sample<Classes> Sample;
-namespace bayes{
 class NaiveBayesClassifier : public T_NaiveBayesClassifier<Classes>{
-    size_t getClassNum() const override{return Classes::counter;}  
-public:
-    void Train(const std::vector<Sample>& samples,const float* classProbs) override;
+    size_t getClassNum() const override{return Classes::counter;}
+    bool CalcClassProb(float* prob) override;
+//public:
+    //void Train(const std::vector<Sample>& samples,const float* classProbs) override;
 };
 class NonNaiveBayesClassifier : public T_NonNaiveBayesClassifier<Classes>{
     size_t getClassNum() const override{return Classes::counter;}  
+    bool CalcClassProb(float* prob) override;
 public:
-    void Train(const std::vector<Sample>& samples,const float* classProbs) override;
+    void train(const std::vector<Sample>& samples,const float* classProbs) override;
 };
-}
-namespace linear{
 class FisherClassifier : public T_FisherClassifier<Classes>{
     size_t getClassNum() const override{return Classes::counter;}
-public:
-    void Train(const std::vector<Sample>& samples) override;
 };
 bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses); 
-}
 #endif

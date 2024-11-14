@@ -68,7 +68,6 @@ int HistMethod(const cv::Mat& rawImage){
     return 0;
 }
 int BayersMethod(const cv::Mat& correctImage){
-    using namespace bayes;
     unsigned int classesNum = Classes::counter;
     float* classProbs = new float[classesNum];
     CalcClassProb(classProbs);
@@ -80,7 +79,7 @@ int BayersMethod(const cv::Mat& correctImage){
     delete[] classParas;
     //NaiveBayesClassifier* classifier = new NaiveBayesClassifier();
     NonNaiveBayesClassifier* classifier = new NonNaiveBayesClassifier();
-    classifier->Train(dataset,classProbs);
+    classifier->train(dataset,classProbs);
     delete[] classProbs;
     ClassMat patchClasses,pixelClasses;
     BayesClassify(correctImage,classifier,patchClasses);
@@ -94,8 +93,6 @@ int BayersMethod(const cv::Mat& correctImage){
     return 0;
 }
 int FisherMethod(const cv::Mat& correctImage){
-    using namespace bayes;
-    using namespace linear;
     unsigned int classesNum = Classes::counter;
     StaticPara* classParas = new StaticPara[classesNum];
     for (unsigned int classID = 0; classID < classesNum; classID++)

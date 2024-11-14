@@ -424,7 +424,6 @@ bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const 
     return true;
 }
 };
-namespace bayes{
 bool CalcClassProb(float* prob){
     unsigned int* countings = new unsigned int[Classes::counter];
     unsigned int totalRecord = 0;
@@ -583,4 +582,3 @@ bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const C
     }
     return true;
 }
-};

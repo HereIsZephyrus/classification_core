@@ -18,7 +18,6 @@ bool SecondConvexHull(const cv::Mat& convexIn,cv::Mat& totalMask,cv::Mat& convex
 bool ClassifityFruits(const cv::Mat& rawImage,const cv::Mat& correctImage,const cv::Mat& flatImage,const cv::Mat& convexImage);
 };
 typedef std::vector<std::vector<Classes>> ClassMat;
-namespace bayes{
 bool CalcClassProb(float* prob);
 bool StudySamples(StaticPara* classParas,std::vector<Sample>& dataset);
 template <class paraForm>
@@ -43,5 +42,4 @@ bool BayesClassify(const cv::Mat& rawimage,T_BayesClassifier<paraForm,Classes>* 
 }
 bool DownSampling(const ClassMat& patchClasses,ClassMat& pixelClasses);
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const ClassMat& pixelClasses);
-};
 #endif

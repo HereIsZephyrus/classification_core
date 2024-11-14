@@ -1,4 +1,6 @@
 #include "classifier.hpp"
+#include <fstream>
+#include <filesystem>
 using namespace Eigen;
 namespace fruit{
 std::string classFolderNames[Classes::counter] = 
@@ -67,58 +69,89 @@ void StaticPara::Sampling(const std::string& entryPath){
     }
     return;
 }
-namespace bayes {
-void NaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
-    featureNum = samples[0].getFeatures().size(); //select all
-    para.clear();
-    unsigned int classNum = getClassNum();
-    std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
-    for (int i = 0; i < classNum; i++){
-        classifiedFeaturesAvg[i].assign(featureNum,0.0);
-        classifiedFeaturesVar[i].assign(featureNum,0.0);
+bool NaiveBayesClassifier::CalcClassProb(float* prob){
+    unsigned int* countings = new unsigned int[Classes::counter];
+    unsigned int totalRecord = 0;
+    for (int i = 0; i < Classes::counter; i++)
+        countings[i] = 0;
+    std::string filename = "../fruit/sampling/suit3/classification.csv";
+    std::ifstream file(filename);
+    std::string line;
+    if (!file.is_open()) {
+        std::cerr << "can't open file!" << filename << std::endl;
+        return false;
     }
-    std::vector<size_t> classRecordNum(classNum,0);
-    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < featureNum; i++)
-            classifiedFeaturesAvg[label][i] += sampleFeature[i];
-        classRecordNum[label]++;
+    std::getline(file, line);// throw header
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<std::string> row;
+        while (std::getline(ss, value, ',')) {}
+        totalRecord++;
+        value.pop_back();
+        if (value == "Desk")
+            countings[Classes::Desk]++;
+        else if (value == "Apple")
+            countings[Classes::Apple]++;
+        else if (value == "Blackplum")
+            countings[Classes::Blackplum]++;
+        else if (value == "Dongzao")
+            countings[Classes::Dongzao]++;
+        else if (value == "Grape")
+            countings[Classes::Grape]++;
+        else if (value == "Peach")
+            countings[Classes::Peach]++;
+        else if (value == "Yellowpeach")
+            countings[Classes::Yellowpeach]++;
     }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < featureNum; j++)
-            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-    for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < featureNum; i++)
-            classifiedFeaturesVar[label][i] += (sampleFeature[i] - classifiedFeaturesAvg[label][i]) * (sampleFeature[i] - classifiedFeaturesAvg[label][i]);
-    }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < featureNum; j++)
-            classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
-    for (unsigned int i = 0; i < classNum; i++){
-        BasicParaList temp;
-        temp.w = classProbs[i];
-        temp.mu = classifiedFeaturesAvg[i];
-        temp.sigma = classifiedFeaturesVar[i];
-        para.push_back(temp);
-        {
-            std::cout<<"class "<<i<<" counts"<<classRecordNum[i]<<std::endl;
-            std::cout<<"w: "<<temp.w<<std::endl;
-            std::cout<<"mu: ";
-            for (unsigned int j = 0; j < featureNum; j++)
-                std::cout<<temp.mu[j]<<" ";
-            std::cout<<std::endl;
-            std::cout<<"sigma: ";
-            for (unsigned int j = 0; j < featureNum; j++)
-                std::cout<<temp.sigma[j]<<" ";
-            std::cout<<std::endl;
-        }
-    }
-    return;
+    file.close();
+    for (int i = 0; i < Classes::counter; i++)
+        prob[i] = static_cast<float>(countings[i]) / totalRecord;
+    delete[] countings;
+    return true;
 }
-void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const float* classProbs){
+bool NonNaiveBayesClassifier::CalcClassProb(float* prob){
+    unsigned int* countings = new unsigned int[Classes::counter];
+    unsigned int totalRecord = 0;
+    for (int i = 0; i < Classes::counter; i++)
+        countings[i] = 0;
+    std::string filename = "../fruit/sampling/suit3/classification.csv";
+    std::ifstream file(filename);
+    std::string line;
+    if (!file.is_open()) {
+        std::cerr << "can't open file!" << filename << std::endl;
+        return false;
+    }
+    std::getline(file, line);// throw header
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<std::string> row;
+        while (std::getline(ss, value, ',')) {}
+        totalRecord++;
+        value.pop_back();
+        if (value == "Desk")
+            countings[Classes::Desk]++;
+        else if (value == "Apple")
+            countings[Classes::Apple]++;
+        else if (value == "Blackplum")
+            countings[Classes::Blackplum]++;
+        else if (value == "Dongzao")
+            countings[Classes::Dongzao]++;
+        else if (value == "Grape")
+            countings[Classes::Grape]++;
+        else if (value == "Peach")
+            countings[Classes::Peach]++;
+        else if (value == "Yellowpeach")
+            countings[Classes::Yellowpeach]++;
+    }
+    file.close();
+    for (int i = 0; i < Classes::counter; i++)
+        prob[i] = static_cast<float>(countings[i]) / totalRecord;
+    delete[] countings;
+    return true;
+}
+void NonNaiveBayesClassifier::train(const std::vector<Sample>& samples,const float* classProbs){
     featureNum = samples[0].getFeatures().size(); //select all
     //std::cout<<featureNum<<std::endl;
     para.clear();
@@ -158,43 +191,6 @@ void NonNaiveBayesClassifier::Train(const std::vector<Sample>& samples,const flo
     }
     return;
 };
-};//namespace bayes
-namespace linear{
-void FisherClassifier::Train(const std::vector<Sample>& samples){
-    featureNum = samples[0].getFeatures().size(); //select all
-    fMat SwMat,SbMat;
-    SwMat = new float*[featureNum];
-    SbMat = new float*[featureNum];
-    for (size_t i = 0; i < featureNum; i++){
-        SwMat[i] = new float[featureNum];
-        SbMat[i] = new float[featureNum];
-        for (size_t j = 0; j < featureNum; j++)
-            SwMat[i][j] = 0.0f,SbMat[i][j] = 0.0f;
-    }
-    CalcSwSb(SwMat,SbMat,samples);
-    MatrixXf Sw(featureNum,featureNum),Sb(featureNum,featureNum);
-    for (size_t i = 0; i < featureNum; i++)
-        for (size_t j = 0; j < featureNum; j++)
-            Sw(i,j) = SwMat[i][j],Sb(i,j) = SbMat[i][j];
-    for (size_t i = 0; i < featureNum; i++){
-        delete[] SwMat[i];
-        delete[] SbMat[i];
-    }
-    delete[] SwMat;
-    delete[] SbMat;
-    SelfAdjointEigenSolver<MatrixXf> eig(Sw.completeOrthogonalDecomposition().pseudoInverse() * Sb);
-    int classNum = getClassNum();
-    MatrixXf projectionMatrix = eig.eigenvectors().rightCols(1);
-    for (size_t j = 0; j < featureNum; j++)
-        projMat.push_back(projectionMatrix(j));
-    for (int i = 0; i < classNum; i++){
-        float calcmean = 0;
-        for (size_t j = 0; j < featureNum; j++)
-            calcmean += projectionMatrix(j) * mu[i][j];
-        signal.push_back(calcmean);
-    }
-    return;
-}
 bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vector<std::vector<Classes>>& patchClasses){
     int rows = rawimage.rows, cols = rawimage.cols;
     for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
@@ -214,4 +210,3 @@ bool LinearClassify(const cv::Mat& rawimage,FisherClassifier* classifer,std::vec
     }
     return true;
 }
-};//namespace linear

@@ -16,7 +16,8 @@ constexpr int defaultClassifierKernelSize = 9;
 using std::vector;
 using std::pair;
 using std::map;
-template <typename classType>
+using namespace Eigen;
+template <class classType>
 class T_StaticPara{
     vector<vFloat> avg,var;
     classType classID;
@@ -32,7 +33,7 @@ public:
     const vector<vFloat>& getAvg() const{return avg;}
     const vector<vFloat>& getVar() const{return var;}
 };
-template <typename classType>
+template <class classType>
 class T_Sample{
     classType label;
     vFloat features;
@@ -54,20 +55,21 @@ public:
     }
     bool isTrainSample() const{return isTrain;}
 };
-template <typename classType>
+template <class classType>
 class T_Classifier{
+using Dataset = vector<T_Sample<classType>>;
 protected:
     size_t featureNum;
     std::string outputPhotoName;
     float precision,recall,f1;
 public:
-    using SampleList = vector<T_Sample<classType>>;
     virtual classType Predict(const vFloat& x) = 0;
     virtual size_t getClassNum() const{return 0;}
+    virtual void Train(const Dataset &dataset) = 0;
     const std::string& printPhoto() const{return outputPhotoName;}
-    void Examine(const vector<T_Sample<classType>>& samples){
+    void Examine(const Dataset& samples){
         size_t TP = 0, FP = 0,FN = 0,testSampleNum = 0;
-        for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
+        for (typename Dataset::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())
                 continue;
             ++ testSampleNum;
@@ -178,22 +180,23 @@ public:
         }
     }
 };
-namespace bayes{
-struct BasicParaList{
+struct BasicBayesParaList{
     float w;
     vector<double> mu,sigma;
 };
-struct convParaList{
+struct ConvBayesParaList{
     float w;
     vector<double> mu;
     fMat convMat;
     fMat invMat;
 };
-template <class paraForm,typename classType>
+template <class paraForm,class classType>
 class T_BayesClassifier : public T_Classifier<classType>{
+using Dataset = vector<T_Sample<classType>>;
 protected:
     vector<paraForm> para;
     virtual double CalculateClassProbability(unsigned int classID,const vFloat& x) = 0;
+    virtual bool CalcClassProb(float* prob) = 0;
 public:
     T_BayesClassifier(){}
     ~T_BayesClassifier(){}
@@ -210,12 +213,20 @@ public:
         }
         return bestClass;
     }
-    virtual void Train(const vector<T_Sample<classType>>& samples,const float* classProbs) = 0;
+    virtual void train(const Dataset& samples,const float* classProbs) = 0;
+    virtual void Train(const Dataset& dataset){
+        unsigned int classesNum = this->getClassNum();
+        float* classProbs = new float[classesNum];
+        CalcClassProb(classProbs);
+        train(dataset,classProbs);
+        delete[] classProbs;
+    }
 };
-template <typename classType>
-class T_NaiveBayesClassifier : public T_BayesClassifier<BasicParaList,classType>{
+template <class classType>
+class T_NaiveBayesClassifier : public T_BayesClassifier<BasicBayesParaList,classType>{
+using Dataset = vector<T_Sample<classType>>;
 protected:
-    double CalculateClassProbability(unsigned int classID,const vFloat& x){
+    double CalculateClassProbability(unsigned int classID,const vFloat& x) override{
         double res = this->para[static_cast<classType>(classID)].w;
         for (unsigned int d = 0; d < this->featureNum; d++){
             float pd = x[d] - this->para[static_cast<classType>(classID)].mu[d];
@@ -229,11 +240,66 @@ protected:
 public:
     T_NaiveBayesClassifier(){this->outputPhotoName = "naiveBayes.png";};
     ~T_NaiveBayesClassifier(){}
+    void train(const Dataset& dataset,const float* classProbs) override{
+        this->featureNum = dataset[0].getFeatures().size();
+        this->para.clear();
+        unsigned int classNum = this->getClassNum();
+        vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
+        for (int i = 0; i < classNum; i++){
+            classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
+            classifiedFeaturesVar[i].assign(this->featureNum,0.0);
+        }
+        vector<size_t> classRecordNum(classNum,0);
+        for (typename Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++){
+            if (!it->isTrainSample())
+                continue;
+            unsigned int label = static_cast<unsigned int>(it->getLabel());
+            const vFloat& sampleFeature = it->getFeatures();
+            for (unsigned int i = 0; i < this->featureNum; i++)
+                classifiedFeaturesAvg[label][i] += sampleFeature[i];
+            classRecordNum[label]++;
+        }
+        for (unsigned int i = 0; i < classNum; i++)
+            for (unsigned int j = 0; j < this->featureNum; j++)
+                classifiedFeaturesAvg[i][j] /= classRecordNum[i];
+        for (typename Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++){
+            unsigned int label = static_cast<unsigned int>(it->getLabel());
+            const vFloat& sampleFeature = it->getFeatures();
+            for (unsigned int i = 0; i < this->featureNum; i++)
+                classifiedFeaturesVar[label][i] += (sampleFeature[i] - classifiedFeaturesAvg[label][i]) * (sampleFeature[i] - classifiedFeaturesAvg[label][i]);
+        }
+        for (unsigned int i = 0; i < classNum; i++)
+            for (unsigned int j = 0; j < this->featureNum; j++)
+                classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
+        for (unsigned int i = 0; i < classNum; i++){
+            BasicBayesParaList temp;
+            temp.w = classProbs[i];
+            temp.mu = classifiedFeaturesAvg[i];
+            temp.sigma = classifiedFeaturesVar[i];
+            this->para.push_back(temp);
+            /*
+            {
+                std::cout<<"class "<<i<<" counts"<<classRecordNum[i]<<std::endl;
+                std::cout<<"w: "<<temp.w<<std::endl;
+                std::cout<<"mu: ";
+                for (unsigned int j = 0; j < this->featureNum; j++)
+                    std::cout<<temp.mu[j]<<" ";
+                std::cout<<std::endl;
+                std::cout<<"sigma: ";
+                for (unsigned int j = 0; j < this->featureNum; j++)
+                    std::cout<<temp.sigma[j]<<" ";
+                std::cout<<std::endl;
+            }
+            */
+        }
+        return;
+    }
 };
-template <typename classType>
-class T_NonNaiveBayesClassifier : public T_BayesClassifier<convParaList,classType>{
+template <class classType>
+class T_NonNaiveBayesClassifier : public T_BayesClassifier<ConvBayesParaList,classType>{
+using Dataset = vector<T_Sample<classType>>;
 protected:
-    double CalculateClassProbability(unsigned int classID,const vFloat& x){
+    double CalculateClassProbability(unsigned int classID,const vFloat& x) override{
         const unsigned int classNum = this->getClassNum();
         double res = log(this->para[static_cast<classType>(classID)].w);
         res -= log(determinant(this->para[classID].convMat))/2;
@@ -308,7 +374,7 @@ protected:
 public:
     T_NonNaiveBayesClassifier(){this->outputPhotoName = "nonNaiveBayes.png";}
     ~T_NonNaiveBayesClassifier(){
-        for (vector<convParaList>::const_iterator it = this->para.begin(); it != this->para.end(); it++){
+        for (vector<ConvBayesParaList>::const_iterator it = this->para.begin(); it != this->para.end(); it++){
             if(it->convMat != nullptr){
                 for(size_t i = 0;i < this->featureNum;i++)
                     delete[] it->convMat[i];
@@ -322,16 +388,14 @@ public:
         }
     }
 };
-}
-namespace linear{
 template <class classType>
 class T_FisherClassifier : public T_Classifier<classType>{
+using Dataset = vector<T_Sample<classType>>;
 protected:
     using SampleType = T_Sample<classType>;
     vector<vFloat> mu;
     vFloat signal,projMat;
     void CalcSwSb(float** Sw,float** Sb,const vector<SampleType>& samples){
-        using SampleList = vector<T_Sample<classType>>;
         unsigned int classNum = this->getClassNum();
         vFloat featureAvg(this->featureNum, 0.0f);
         vFloat classifiedFeaturesAvg[classNum];
@@ -339,7 +403,7 @@ protected:
             classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
         vector<size_t> classRecordNum(classNum,0);
         int total = 0;
-        for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
+        for (typename Dataset::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (!it->isTrainSample())
                 continue;
             unsigned int label = static_cast<unsigned int>(it->getLabel());
@@ -358,7 +422,7 @@ protected:
             featureAvg[j] /= total;
         for (unsigned int i = 0; i < classNum; i++)
             mu.push_back(classifiedFeaturesAvg[i]);
-        for (typename SampleList::const_iterator it = samples.begin(); it != samples.end(); it++){
+        for (typename Dataset::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (!it->isTrainSample())
                 continue;
             unsigned int label = it->getLabel();
@@ -382,9 +446,44 @@ protected:
 public:
     T_FisherClassifier() {this->outputPhotoName = "fisher.png";}
     ~T_FisherClassifier(){}
-    virtual void Train(const vector<SampleType>& samples) = 0;
-
-    classType Predict(const vFloat& x){
+    virtual void Train(const Dataset& dataset){
+        this->featureNum = dataset[0].getFeatures().size(); //select all
+        fMat SwMat,SbMat;
+        SwMat = new float*[this->featureNum];
+        SbMat = new float*[this->featureNum];
+        for (size_t i = 0; i < this->featureNum; i++){
+            SwMat[i] = new float[this->featureNum];
+            SbMat[i] = new float[this->featureNum];
+            for (size_t j = 0; j < this->featureNum; j++)
+                SwMat[i][j] = 0.0f,SbMat[i][j] = 0.0f;
+        }
+        CalcSwSb(SwMat,SbMat,dataset);
+        MatrixXf Sw(this->featureNum,this->featureNum),Sb(this->featureNum,this->featureNum);
+        for (size_t i = 0; i < this->featureNum; i++)
+            for (size_t j = 0; j < this->featureNum; j++)
+                Sw(i,j) = SwMat[i][j],Sb(i,j) = SbMat[i][j];
+        for (size_t i = 0; i < this->featureNum; i++){
+            delete[] SwMat[i];
+            delete[] SbMat[i];
+        }
+        delete[] SwMat;
+        delete[] SbMat;
+        SelfAdjointEigenSolver<MatrixXf> eig(Sw.completeOrthogonalDecomposition().pseudoInverse() * Sb);
+        int classNum = this->getClassNum();
+        MatrixXf projectionMatrix = eig.eigenvectors().rightCols(1);
+        for (size_t j = 0; j < this->featureNum; j++){
+            projMat.push_back(projectionMatrix(j));
+        }
+        for (int i = 0; i < classNum; i++){
+            float calcmean = 0;
+            for (size_t j = 0; j < this->featureNum; j++)
+                calcmean += projectionMatrix(j) * mu[i][j];
+            signal.push_back(calcmean);
+            //std::cout<<signal[i]<<std::endl;
+        }
+        return;
+    }
+    classType Predict(const vFloat& x) override{
         classType resClass;
         double projed = 0;
         for (unsigned int i = 0; i < this->featureNum; i++)
@@ -400,9 +499,9 @@ public:
         return resClass;
     }
 };
-}
 template <class classType>
 class T_SVMClassifier : public T_Classifier<classType>{
+using Dataset = vector<T_Sample<classType>>;
 protected:
     class OVOSVM {
         double learningRate,bias,limit;
@@ -478,8 +577,10 @@ protected:
 public:
     T_SVMClassifier(){this->outputPhotoName = "svm.png";}
     ~T_SVMClassifier(){}
-    virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
-    classType Predict(const vFloat& x){
+    virtual void Train(const Dataset& dataset){
+
+    };
+    classType Predict(const vFloat& x) override{
         vector<unsigned int> classVote(this->getClassNum());
         classVote.assign(this->getClassNum(),0);
         for (typename vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
@@ -505,6 +606,7 @@ public:
 };
 template <class classType>
 class T_BPClassifier : public T_Classifier<classType>{
+using Dataset = vector<T_Sample<classType>>;
 protected:
     int classNum,hiddenSize;
     vector<vFloat> weightsInput2Hidden,weightsHidden2Output,deltaWeightsInput2Hidden,deltaWeightsHidden2Output;
@@ -567,8 +669,39 @@ protected:
 public:
     T_BPClassifier(int hiddensize = 20, double rate = 0.4, double mom = 0.8):classNum(0),hiddenSize(hiddensize),learningRate(rate),momentum(mom) {this->outputPhotoName = "bp.png";}
     ~T_BPClassifier(){}
-    virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
-    classType Predict(const vFloat& x){
+    virtual void Train(const Dataset& dataset){
+        this->featureNum = dataset[0].getFeatures().size();
+        classNum = this->getClassNum();
+        initWeights();
+        int maxiter = 100;
+        while(maxiter--){
+            double TMSE = 0,Tacc = 0;
+            int total = 0;
+            for (typename Dataset::const_iterator data = dataset.begin(); data != dataset.end(); data++){
+                if (!data->isTrainSample())
+                    continue;
+                ++total;
+                classType label = data->getLabel(),resClass;
+                unsigned int uLabel = static_cast<unsigned int>(label);
+                double maxVal = -1.0;
+                vFloat hidden,output;
+                forwardFeed(data->getFeatures(),hidden,output);
+                TMSE += (1.0 - output[uLabel]) * (1.0 - output[uLabel]);
+                for (int k = 0; k < classNum; k++)
+                    if (output[k] > maxVal){
+                        maxVal = output[k];
+                        resClass = static_cast<classType>(k);
+                    }
+                if (label == resClass)  Tacc += 1.0;
+                backwardFeed(uLabel,data->getFeatures(),hidden,output);
+            }
+            TMSE = TMSE / (double)total;
+            Tacc = Tacc / (double)total * 100.0;
+            if (TMSE < 0.05 || Tacc > 95)
+                break;
+        }
+    }
+    classType Predict(const vFloat& x) override{
         vFloat hidden,actived;
         forwardFeed(x,hidden,actived);
         classType resClass;
@@ -733,8 +866,15 @@ public:
         this->outputPhotoName = "rf.png";
     }
     ~T_RandomForestClassifier(){}
-    virtual void Train(const vector<T_Sample<classType>>& samples) = 0;
-    classType Predict(const vFloat& x){
+    virtual void Train(const Dataset& dataset){
+        this->featureNum = dataset[0].getFeatures().size();
+        for (int i = 0; i < nEstimators; i++){
+            std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(this->featureNum,maxDepth,minSamplesSplit,minSamplesLeaf);
+            tree->train(dataset);
+            decisionTrees.push_back(std::move(tree));
+        }
+    }
+    classType Predict(const vFloat& x) override{
         ProbClass votes;
         for (typename DecisionTreeList::iterator tree = decisionTrees.begin(); tree != decisionTrees.end(); tree++){
             ProbClass singleVote = (*tree)->predict(x);

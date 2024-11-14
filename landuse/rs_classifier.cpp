@@ -5,7 +5,10 @@
 #include <cstdlib>
 #include <random>
 #include <algorithm>
+#include <Eigen/Dense>
 #include <memory>
+#include <fstream>
+#include <filesystem>
 #include "rs_classifier.hpp"
 using namespace Eigen;
 template<>
@@ -54,58 +57,6 @@ std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::Edge,cv::Scalar(255,255,255)}, // white
     {LandCover::UNCLASSIFIED,cv::Scalar(255,255,255)}, // black
 };
-void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset,const float* classProbs){
-    featureNum = dataset[0].getFeatures().size(); //select all
-    para.clear();
-    unsigned int classNum = getClassNum();
-    std::vector<double> classifiedFeaturesAvg[classNum],classifiedFeaturesVar[classNum];
-    for (int i = 0; i < classNum; i++){
-        classifiedFeaturesAvg[i].assign(featureNum,0.0);
-        classifiedFeaturesVar[i].assign(featureNum,0.0);
-    }
-    std::vector<size_t> classRecordNum(classNum,0);
-    for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
-        if (!it->isTrainSample())
-            continue;
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < featureNum; i++)
-            classifiedFeaturesAvg[label][i] += sampleFeature[i];
-        classRecordNum[label]++;
-    }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < featureNum; j++)
-            classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-    for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
-        unsigned int label = static_cast<unsigned int>(it->getLabel());
-        const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < featureNum; i++)
-            classifiedFeaturesVar[label][i] += (sampleFeature[i] - classifiedFeaturesAvg[label][i]) * (sampleFeature[i] - classifiedFeaturesAvg[label][i]);
-    }
-    for (unsigned int i = 0; i < classNum; i++)
-        for (unsigned int j = 0; j < featureNum; j++)
-            classifiedFeaturesVar[i][j] = std::sqrt(classifiedFeaturesVar[i][j]/classRecordNum[i]);
-    for (unsigned int i = 0; i < classNum; i++){
-        BasicParaList temp;
-        temp.w = classProbs[i];
-        temp.mu = classifiedFeaturesAvg[i];
-        temp.sigma = classifiedFeaturesVar[i];
-        para.push_back(temp);
-        {
-            std::cout<<"class "<<i<<" counts"<<classRecordNum[i]<<std::endl;
-            std::cout<<"w: "<<temp.w<<std::endl;
-            std::cout<<"mu: ";
-            for (unsigned int j = 0; j < featureNum; j++)
-                std::cout<<temp.mu[j]<<" ";
-            std::cout<<std::endl;
-            std::cout<<"sigma: ";
-            for (unsigned int j = 0; j < featureNum; j++)
-                std::cout<<temp.sigma[j]<<" ";
-            std::cout<<std::endl;
-        }
-    }
-    return;
-}
 bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
     using namespace weilaicheng;
     unsigned int* countings = new unsigned int[LandCover::CoverType];
@@ -140,50 +91,6 @@ bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
         prob[i] = static_cast<float>(countings[i]) / totalRecord;
     delete[] countings;
     return true;
-}
-void land_NaiveBayesClassifier::Train(const std::vector<land_Sample>& dataset){
-    unsigned int classesNum = getClassNum();
-    float* classProbs = new float[classesNum];
-    CalcClassProb(classProbs);
-    Train(dataset,classProbs);
-    delete[] classProbs;
-}
-void land_FisherClassifier::Train(const std::vector<land_Sample>& dataset){
-    featureNum = dataset[0].getFeatures().size(); //select all
-    fMat SwMat,SbMat;
-    SwMat = new float*[featureNum];
-    SbMat = new float*[featureNum];
-    for (size_t i = 0; i < featureNum; i++){
-        SwMat[i] = new float[featureNum];
-        SbMat[i] = new float[featureNum];
-        for (size_t j = 0; j < featureNum; j++)
-            SwMat[i][j] = 0.0f,SbMat[i][j] = 0.0f;
-    }
-    CalcSwSb(SwMat,SbMat,dataset);
-    MatrixXf Sw(featureNum,featureNum),Sb(featureNum,featureNum);
-    for (size_t i = 0; i < featureNum; i++)
-        for (size_t j = 0; j < featureNum; j++)
-            Sw(i,j) = SwMat[i][j],Sb(i,j) = SbMat[i][j];
-    for (size_t i = 0; i < featureNum; i++){
-        delete[] SwMat[i];
-        delete[] SbMat[i];
-    }
-    delete[] SwMat;
-    delete[] SbMat;
-    SelfAdjointEigenSolver<MatrixXf> eig(Sw.completeOrthogonalDecomposition().pseudoInverse() * Sb);
-    int classNum = getClassNum();
-    MatrixXf projectionMatrix = eig.eigenvectors().rightCols(1);
-    for (size_t j = 0; j < featureNum; j++){
-        projMat.push_back(projectionMatrix(j));
-    }
-    for (int i = 0; i < classNum; i++){
-        float calcmean = 0;
-        for (size_t j = 0; j < featureNum; j++)
-            calcmean += projectionMatrix(j) * mu[i][j];
-        signal.push_back(calcmean);
-        std::cout<<signal[i]<<std::endl;
-    }
-    return;
 }
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
     this->featureNum = dataset[0].getFeatures().size(); //select all
@@ -225,46 +132,6 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             classifier.train(classPN,classLabeli);
             classifiers.push_back(classifier);
         }
-}
-void land_BPClassifier::Train(const std::vector<land_Sample>& dataset){
-    featureNum = dataset[0].getFeatures().size(); //select all
-    classNum = getClassNum();
-    initWeights();
-    int maxiter = 100;
-    while(maxiter--){
-        double TMSE = 0,Tacc = 0;
-        int total = 0;
-        for (std::vector<land_Sample>::const_iterator data = dataset.begin(); data != dataset.end(); data++){
-            if (!data->isTrainSample())
-                continue;
-            ++total;
-            LandCover label = data->getLabel(),resClass = LandCover::UNCLASSIFIED;
-            unsigned int uLabel = static_cast<unsigned int>(label);
-            double maxVal = -1.0;
-            vFloat hidden,output;
-            forwardFeed(data->getFeatures(),hidden,output);
-            TMSE += (1.0 - output[uLabel]) * (1.0 - output[uLabel]);
-            for (int k = 0; k < classNum; k++)
-                if (output[k] > maxVal){
-                    maxVal = output[k];
-                    resClass = static_cast<LandCover>(k);
-                }
-            if (label == resClass)  Tacc += 1.0;
-            backwardFeed(uLabel,data->getFeatures(),hidden,output);
-        }
-        TMSE = TMSE / (double)total;
-		Tacc = Tacc / (double)total * 100.0;
-        if (TMSE < 0.05 || Tacc > 95)
-		    break;
-    }
-}
-void land_RandomForestClassifier::Train(const std::vector<land_Sample>& dataset){
-    featureNum = dataset[0].getFeatures().size();
-    for (int i = 0; i < nEstimators; i++){
-        std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(featureNum,maxDepth,minSamplesSplit,minSamplesLeaf);
-        tree->train(dataset);
-        decisionTrees.push_back(std::move(tree));
-    }
 }
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const std::vector<std::vector<LandCover>>& pixelClasses){
     using ClassMat = std::vector<std::vector<LandCover>>;
