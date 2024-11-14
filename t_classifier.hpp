@@ -200,7 +200,7 @@ protected:
 public:
     T_BayesClassifier(){}
     ~T_BayesClassifier(){}
-    classType Predict(const vFloat& x){
+    classType Predict(const vFloat& x) override{
         unsigned int classNum = this->getClassNum();
         double maxProb = -10e9;
         classType bestClass;
@@ -214,7 +214,7 @@ public:
         return bestClass;
     }
     virtual void train(const Dataset& samples,const float* classProbs) = 0;
-    virtual void Train(const Dataset& dataset){
+    virtual void Train(const Dataset& dataset) override{
         unsigned int classesNum = this->getClassNum();
         float* classProbs = new float[classesNum];
         CalcClassProb(classProbs);
@@ -446,8 +446,8 @@ protected:
 public:
     T_FisherClassifier() {this->outputPhotoName = "fisher.png";}
     ~T_FisherClassifier(){}
-    virtual void Train(const Dataset& dataset){
-        this->featureNum = dataset[0].getFeatures().size(); //select all
+    virtual void Train(const Dataset& dataset) override{
+        this->featureNum = dataset[0].getFeatures().size();
         fMat SwMat,SbMat;
         SwMat = new float*[this->featureNum];
         SbMat = new float*[this->featureNum];
@@ -573,25 +573,45 @@ protected:
         classType getPositiveClass() const{ return positiveClass; }
         classType getNegetiveClass() const{ return negetiveClass; }
     };
-    vector<OVOSVM> classifiers;
+    vector<std::unique_ptr<OVOSVM>> classifiers;
 public:
     T_SVMClassifier(){this->outputPhotoName = "svm.png";}
     ~T_SVMClassifier(){}
-    virtual void Train(const Dataset& dataset){
-
+    virtual void Train(const Dataset& dataset) override{
+        this->featureNum = dataset[0].getFeatures().size();
+        unsigned int classNum = this->getClassNum();
+        std::vector<vFloat> classCount[classNum];
+        for (typename Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++){
+            if (!it->isTrainSample())
+                continue;
+            unsigned int classID = static_cast<unsigned int>(it->getLabel());
+            classCount[classID].push_back(it->getFeatures());
+        }
+        for (unsigned int i = 0; i < classNum; i++)
+            for (unsigned int j = i+1; j < classNum; j++){
+                std::vector<vFloat> classPN = classCount[i];
+                std::vector<int> classLabeli,classLabelj;
+                classLabeli.assign(classCount[i].size(),1);
+                classLabelj.assign(classCount[j].size(),-1);
+                classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
+                classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
+                std::unique_ptr<OVOSVM> classifier = std::make_unique<OVOSVM>(static_cast<classType>(i),static_cast<classType>(j));
+                classifier->train(classPN,classLabeli);
+                classifiers.push_back(std::move(classifier));
+            }
     };
     classType Predict(const vFloat& x) override{
         vector<unsigned int> classVote(this->getClassNum());
         classVote.assign(this->getClassNum(),0);
-        for (typename vector<OVOSVM>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
-            if (it->getNegetiveClass() > this->getClassNum()){
-                if (it->predict(x))
-                    return it->getPositiveClass();
+        for (typename vector<std::unique_ptr<OVOSVM>>::iterator it = classifiers.begin(); it != classifiers.end(); it++){
+            if ((*it)->getNegetiveClass() > this->getClassNum()){
+                if ((*it)->predict(x))
+                    return (*it)->getPositiveClass();
             }else{
-                if (it->predict(x))
-                    ++classVote[static_cast<unsigned int>(it->getPositiveClass())];
+                if ((*it)->predict(x))
+                    ++classVote[static_cast<unsigned int>((*it)->getPositiveClass())];
                 else
-                    ++classVote[static_cast<unsigned int>(it->getNegetiveClass())];
+                    ++classVote[static_cast<unsigned int>((*it)->getNegetiveClass())];
             }
         }
         int maxVote = 0;
@@ -669,7 +689,7 @@ protected:
 public:
     T_BPClassifier(int hiddensize = 20, double rate = 0.4, double mom = 0.8):classNum(0),hiddenSize(hiddensize),learningRate(rate),momentum(mom) {this->outputPhotoName = "bp.png";}
     ~T_BPClassifier(){}
-    virtual void Train(const Dataset& dataset){
+    virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
         classNum = this->getClassNum();
         initWeights();
@@ -866,7 +886,7 @@ public:
         this->outputPhotoName = "rf.png";
     }
     ~T_RandomForestClassifier(){}
-    virtual void Train(const Dataset& dataset){
+    virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
         for (int i = 0; i < nEstimators; i++){
             std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(this->featureNum,maxDepth,minSamplesSplit,minSamplesLeaf);

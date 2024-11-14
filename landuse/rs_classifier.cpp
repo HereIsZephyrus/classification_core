@@ -114,9 +114,9 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
         }
         classCount[classID].push_back(it->getFeatures());
     }
-    OVOSVM greenlandClassifier = OVOSVM(LandCover::Greenland,LandCover::UNCLASSIFIED);
-    greenlandClassifier.train(greenlandPN,greenlandLabel);
-    classifiers.push_back(greenlandClassifier);
+    std::unique_ptr<OVOSVM> greenlandClassifier = std::make_unique<OVOSVM>(LandCover::Greenland,LandCover::UNCLASSIFIED);
+    greenlandClassifier->train(greenlandPN,greenlandLabel);
+    classifiers.push_back(std::move(greenlandClassifier));
     unsigned int greenlandID = static_cast<unsigned int>(LandCover::Greenland);
     for (unsigned int i = 0; i < classNum; i++)
         for (unsigned int j = i+1; j < classNum; j++){
@@ -128,9 +128,9 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             classLabelj.assign(classCount[j].size(),-1);
             classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
             classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
-            OVOSVM classifier = OVOSVM(static_cast<LandCover>(i),static_cast<LandCover>(j));
-            classifier.train(classPN,classLabeli);
-            classifiers.push_back(classifier);
+            std::unique_ptr<OVOSVM> classifier = std::make_unique<OVOSVM>(static_cast<LandCover>(i),static_cast<LandCover>(j));
+            classifier->train(classPN,classLabeli);
+            classifiers.push_back(std::move(classifier));
         }
 }
 bool GenerateClassifiedImage(const cv::Mat& rawimage,cv::Mat& classified,const std::vector<std::vector<LandCover>>& pixelClasses){
