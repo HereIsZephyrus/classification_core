@@ -604,19 +604,17 @@ protected:
         int minSamplesSplit,minSamplesLeaf;
         double computeGiniIndex(const Dataset& dataset,vector<pair<int, double>> samplesFeaturesVec,size_t splitIndex) {
             map<classType,int> leftCounter,rightCounter;
+            size_t totalSize = samplesFeaturesVec.size();
             for (size_t index = 0; index < splitIndex; index++)
                 leftCounter[dataset[samplesFeaturesVec[index].first].getLabel()]++;
-            for (size_t index = splitIndex; index < samplesFeaturesVec.size(); index++)
+            for (size_t index = splitIndex; index < totalSize; index++)
                 rightCounter[dataset[samplesFeaturesVec[index].first].getLabel()]++;
-            size_t leftSize = leftCounter.size(), rightSize = rightCounter.size();
-            size_t totalSize = leftSize + rightSize;
             double leftGini = 0.0,rightGini = 0.0;
             for (typename map<classType,int>::const_iterator label = leftCounter.begin(); label != leftCounter.end(); label++)
-                leftGini += (double)((label->second) * (label->second) / (totalSize * totalSize));
+                leftGini += (double)(label->second) * (label->second) / (double)(splitIndex * splitIndex);
             for (typename map<classType,int>::const_iterator label = rightCounter.begin(); label != rightCounter.end(); label++)
-                rightGini += (double)((label->second) * (label->second) / (totalSize * totalSize));
-            double leftProb = (double)(leftSize/totalSize),rightprob = (double)(rightSize/totalSize);
-            return leftProb * leftGini + rightprob * rightGini;
+                rightGini += (double)(label->second) * (label->second) / (double)((totalSize - splitIndex) * (totalSize - splitIndex));
+            return (double)(splitIndex/totalSize) * leftGini + (double)(1 - splitIndex/totalSize) * rightGini;
         }
         int maxFeature(int num) {return int(std::sqrt(num));}
         void splitSamplesVec(const Dataset &dataset,const vector<int> &dataIndex,
@@ -648,8 +646,7 @@ protected:
         void chooseBestSplitFeatures(const Dataset &dataset,const vector<int> &dataIndex,int& featureIndex,double& threshold){
             std::set<int> featureBucket;
             vector<int> featuresVec;
-            int maxFeatureNum = maxFeature(dataIndex.size());
-            int featureNum = dataset[0].getFeatures().size();
+            int maxFeatureNum = maxFeature(featureNum);
             while (featureBucket.size() < maxFeatureNum){
                 int index = rand() % featureNum;
                 featureBucket.insert(index);
@@ -657,23 +654,18 @@ protected:
             for (std::set<int> ::const_iterator feature = featureBucket.begin(); feature != featureBucket.end(); feature++)
                 featuresVec.push_back(*feature);
             int bestFeatureIndex = featuresVec[0];
-            float minValue = 1e6, bestThreshold = 0;
+            double minValue = 1e6, bestThreshold = 0;
             vector<pair<int, double>> samplesFeaturesVec(dataIndex.size());
             for (size_t i = 0; i < dataIndex.size(); i++)
                 samplesFeaturesVec[i] = std::make_pair(dataIndex[i],0);
             for (vector<int>::const_iterator feature = featuresVec.begin(); feature != featuresVec.end(); feature++) {
                 sortByFeatures(dataset,*feature,samplesFeaturesVec);
                 int index = 0;
-                while (index < samplesFeaturesVec.size()) {
-                    float threshold = samplesFeaturesVec[index].second;
-                    while (index < samplesFeaturesVec.size() && samplesFeaturesVec[index].second <= threshold)
-                        index++;
-                    if (index >= samplesFeaturesVec.size())
-                        break;
+                for (size_t index = 0 ; index < samplesFeaturesVec.size(); index++){
                     double value = computeGiniIndex(dataset,samplesFeaturesVec,index);
                     if (value <= minValue) {
                         minValue = value;
-                        bestThreshold = threshold;
+                        bestThreshold = samplesFeaturesVec[index].second;
                         bestFeatureIndex = *feature;
                     }
                 }
@@ -712,9 +704,10 @@ protected:
             :featureNum(featureNum),maxDepth(maxDepth),minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf){};
         void train(const Dataset &dataset){
             srand(time(0));
-            vector<int> dataIndex(dataset.size());
-            for (size_t i = 0; i < dataIndex.size(); i++)
-                dataIndex[i] = i;
+            vector<int> dataIndex;
+            for (size_t i = 0; i < dataset.size(); i++)
+                if (dataset[i].isTrainSample())
+                    dataIndex.push_back(i);
             root = constructNode(dataset,dataIndex,0);
         }
         ProbClass predict(const vFloat& x){

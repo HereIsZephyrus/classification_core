@@ -15,6 +15,7 @@ int LanduseMain(){
     std::vector<land_Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
+    /*
     {
         land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
         bayes->Train(dataset);
@@ -67,6 +68,7 @@ int LanduseMain(){
         cv::waitKey(0);
         cv::destroyWindow("BP");
     }
+    */
     {
         land_RandomForestClassifier* randomforest = new land_RandomForestClassifier();
         randomforest->Train(dataset);

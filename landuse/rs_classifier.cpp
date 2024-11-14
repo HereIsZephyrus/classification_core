@@ -190,7 +190,7 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
     unsigned int classNum = getClassNum();
     std::vector<vFloat> greenlandPN,classCount[classNum];
     std::vector<int> greenlandLabel;
-    int selectTag = 0;
+    bool selectTag = true;
     for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
         if (!it->isTrainSample())
             continue;
@@ -199,8 +199,11 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             greenlandPN.push_back(it->getFeatures());
             greenlandLabel.push_back(1);
         }else{
-            greenlandPN.push_back(it->getFeatures());
-            greenlandLabel.push_back(-1);
+            if (selectTag){
+                greenlandPN.push_back(it->getFeatures());
+                greenlandLabel.push_back(-1);
+            }
+            selectTag = !selectTag;
         }
         classCount[classID].push_back(it->getFeatures());
     }
