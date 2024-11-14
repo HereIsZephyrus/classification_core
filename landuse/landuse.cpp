@@ -110,7 +110,8 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
     for (unsigned int classID = 0; classID < LandCover::CoverType; classID++){
         const std::vector<vFloat>& avg = classParas[classID].getAvg();
         const std::vector<vFloat>& var = classParas[classID].getVar();
-        for (unsigned int i = 0; i < classParas[classID].getRecordsNum(); i++){
+        const unsigned int recordNum = classParas[classID].getRecordsNum();
+        for (unsigned int i = 0; i < recordNum; i++){
             vFloat data;
             for (unsigned int d = 0; d < Spectra::SpectralNum; d++){
                 MAXVAL[d * 2] = std::max(MAXVAL[d],avg[i][d]);
@@ -120,7 +121,8 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
                 data.push_back(avg[i][d]);
                 data.push_back(var[i][d]);
             }
-            bool isTrain = (rand()%10) <= (trainRatio*10);
+            //bool isTrain = (rand()%10) <= (trainRatio*10);
+            bool isTrain = (i * trainRatio) <= recordNum;
             land_Sample sample(static_cast<LandCover>(classID),data,isTrain);
             dataset.push_back(sample);
         }

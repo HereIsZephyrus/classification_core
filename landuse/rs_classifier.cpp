@@ -95,41 +95,42 @@ bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
 void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
     this->featureNum = dataset[0].getFeatures().size(); //select all
     unsigned int classNum = getClassNum();
-    std::vector<vFloat> greenlandPN,classCount[classNum];
+    std::vector<int> greenlandPN,classCount[classNum];
     std::vector<int> greenlandLabel;
     bool selectTag = true;
-    for (std::vector<land_Sample>::const_iterator it = dataset.begin(); it != dataset.end(); it++){
-        if (!it->isTrainSample())
+    for (size_t i = 0; i < dataset.size(); i++){
+        const T_Sample<LandCover>& sample = dataset[i];
+        if (!sample.isTrainSample())
             continue;
-        unsigned int classID = static_cast<unsigned int>(it->getLabel());
-        if (it->getLabel() == LandCover::Greenland){
-            greenlandPN.push_back(it->getFeatures());
+        unsigned int classID = static_cast<unsigned int>(sample.getLabel());
+        if (sample.getLabel() == LandCover::Greenland){
+            greenlandPN.push_back(i);
             greenlandLabel.push_back(1);
         }else{
             if (selectTag){
-                greenlandPN.push_back(it->getFeatures());
+                greenlandPN.push_back(i);
                 greenlandLabel.push_back(-1);
             }
             selectTag = !selectTag;
         }
-        classCount[classID].push_back(it->getFeatures());
+        classCount[classID].push_back(i);
     }
     std::unique_ptr<OVOSVM> greenlandClassifier = std::make_unique<OVOSVM>(LandCover::Greenland,LandCover::UNCLASSIFIED);
-    greenlandClassifier->train(greenlandPN,greenlandLabel);
+    greenlandClassifier->train(dataset,greenlandPN,greenlandLabel);
     classifiers.push_back(std::move(greenlandClassifier));
     unsigned int greenlandID = static_cast<unsigned int>(LandCover::Greenland);
     for (unsigned int i = 0; i < classNum; i++)
         for (unsigned int j = i+1; j < classNum; j++){
             if (i == greenlandID || j == greenlandID)
                 continue;
-            std::vector<vFloat> classPN = classCount[i];
+            std::vector<int> classPN = classCount[i];
             std::vector<int> classLabeli,classLabelj;
             classLabeli.assign(classCount[i].size(),1);
             classLabelj.assign(classCount[j].size(),-1);
             classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
             classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
             std::unique_ptr<OVOSVM> classifier = std::make_unique<OVOSVM>(static_cast<LandCover>(i),static_cast<LandCover>(j));
-            classifier->train(classPN,classLabeli);
+            classifier->train(dataset,classPN,classLabeli);
             classifiers.push_back(std::move(classifier));
         }
 }

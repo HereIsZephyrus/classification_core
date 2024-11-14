@@ -521,21 +521,20 @@ protected:
     public:
         OVOSVM(classType pos,classType neg,double limit = 0.01,double learningRate = 0.001, int maxIter = 1000)
         : learningRate(learningRate),maxIter(maxIter),positiveClass(pos),negetiveClass(neg) {}
-        void train(const vector<vFloat>& X, const vector<int>& y) {
-            int sampleNum = X.size(),featureNum = X[0].size();
+        void train(const Dataset& dataset,const vector<int>& index, const vector<int>& y) {
+            int sampleNum = index.size(),featureNum = dataset[index[0]].getFeatures().size();
             weights.assign(featureNum, 0.0);
             double beta = 1.0;
             bool notMargined = true;
             vFloat alpha;
             alpha.assign(sampleNum, 0.0);
-            // Training the SVM
             for (int iter = 0; iter < maxIter; ++iter) {
                 notMargined = false;
                 double error = 0;
                 for (int i = 0; i < sampleNum; i++) {
                     double item1 = 0.0;
                     for (int j = 0; j < sampleNum; j++)
-                        item1 += alpha[j] * (double)y[i] * (double)y[j] * dot(X[i], X[j]);
+                        item1 += alpha[j] * (double)y[i] * (double)y[j] * dot(dataset[index[i]].getFeatures(), dataset[index[j]].getFeatures());
                     double item2 = 0.0;
                     for (int j = 0; j < sampleNum; j++)
                         item2 += alpha[j] * (double)y[i] * (double)y[j];
@@ -555,7 +554,7 @@ protected:
             }
             for (int i = 0; i < sampleNum; i++){
                 if (alpha[i] > eps){
-                    supportVectors.push_back(X[i]);
+                    supportVectors.push_back(dataset[index[i]].getFeatures());
                     supportLabels.push_back(y[i]);
                     supportAlpha.push_back(alpha[i]);
                 }
@@ -580,23 +579,24 @@ public:
     virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
         unsigned int classNum = this->getClassNum();
-        std::vector<vFloat> classCount[classNum];
-        for (typename Dataset::const_iterator it = dataset.begin(); it != dataset.end(); it++){
-            if (!it->isTrainSample())
+        std::vector<int> classCount[classNum];
+        for (size_t i = 0; i < dataset.size(); i++){
+            const T_Sample<classType>& sample = dataset[i];
+            if (!sample.isTrainSample())
                 continue;
-            unsigned int classID = static_cast<unsigned int>(it->getLabel());
-            classCount[classID].push_back(it->getFeatures());
+            unsigned int classID = static_cast<unsigned int>(sample.getLabel());
+            classCount[classID].push_back(i);
         }
         for (unsigned int i = 0; i < classNum; i++)
             for (unsigned int j = i+1; j < classNum; j++){
-                std::vector<vFloat> classPN = classCount[i];
+                std::vector<int> classPN = classCount[i];
                 std::vector<int> classLabeli,classLabelj;
                 classLabeli.assign(classCount[i].size(),1);
                 classLabelj.assign(classCount[j].size(),-1);
                 classLabeli.insert(classLabeli.end(), classLabelj.begin(), classLabelj.end());
                 classPN.insert(classPN.end(), classCount[j].begin(), classCount[j].end());
                 std::unique_ptr<OVOSVM> classifier = std::make_unique<OVOSVM>(static_cast<classType>(i),static_cast<classType>(j));
-                classifier->train(classPN,classLabeli);
+                classifier->train(dataset,classPN,classLabeli);
                 classifiers.push_back(std::move(classifier));
             }
     };
