@@ -56,13 +56,14 @@ class land_RandomForestClassifier : public T_RandomForestClassifier<LandCover>{
 }
 
 namespace ningbo{
-enum UrbanChange : unsigned int{
+enum LandCover : unsigned int{
     Water,
     Greenland,
     Bareland,
+    CropLand,
     Imprevious,
     Cloud,
-    LandType,
+    CoverType,
     Edge,
     UNCLASSIFIED
 };
@@ -75,35 +76,35 @@ enum Spectra : unsigned int{
     SWIR2,
     SpectralNum
 };
-extern std::unordered_map<UrbanChange,std::string> classFolderNames;
-extern std::unordered_map<UrbanChange,cv::Scalar> classifyColor;
+extern std::unordered_map<LandCover,std::string> classFolderNames;
+extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 extern vFloat MINVAL,MAXVAL;
 constexpr int classifierKernelSize = 9;
 }
-typedef T_StaticPara<ningbo::UrbanChange> urban_StaticPara;
-typedef T_Sample<ningbo::UrbanChange> urban_Sample;
+typedef T_StaticPara<ningbo::LandCover> urban_StaticPara;
+typedef T_Sample<ningbo::LandCover> urban_Sample;
 namespace ningbo{
-class urban_NaiveBayesClassifier : public T_NaiveBayesClassifier<UrbanChange>{
+class urban_NaiveBayesClassifier : public T_NaiveBayesClassifier<LandCover>{
     int year;
-    size_t getClassNum() const override{return UrbanChange::LandType;}
+    size_t getClassNum() const override{return LandCover::CoverType;}
     bool CalcClassProb(float* prob) override;
 public:
     urban_NaiveBayesClassifier(int year):year(year){}
     int getYear() const {return year;}
 };
-class urban_FisherClassifier : public T_FisherClassifier<UrbanChange>{
-    size_t getClassNum() const override{return UrbanChange::LandType;}
+class urban_FisherClassifier : public T_FisherClassifier<LandCover>{
+    size_t getClassNum() const override{return LandCover::CoverType;}
 };
-class urban_SVMClassifier : public T_SVMClassifier<UrbanChange>{
-    size_t getClassNum() const override{return UrbanChange::LandType;}
+class urban_SVMClassifier : public T_SVMClassifier<LandCover>{
+    size_t getClassNum() const override{return LandCover::CoverType;}
 //public:
     //void Train(const std::vector<urban_Sample>& dataset) override;
 };
-class urban_BPClassifier : public T_BPClassifier<UrbanChange>{
-    size_t getClassNum() const override{return UrbanChange::LandType;}
+class urban_BPClassifier : public T_BPClassifier<LandCover>{
+    size_t getClassNum() const override{return LandCover::CoverType;}
 };
-class urban_RandomForestClassifier : public T_RandomForestClassifier<UrbanChange>{
-    size_t getClassNum() const override{return UrbanChange::LandType;}
+class urban_RandomForestClassifier : public T_RandomForestClassifier<LandCover>{
+    size_t getClassNum() const override{return LandCover::CoverType;}
 };
 class Classified{
     cv::Mat image,urbanMask;

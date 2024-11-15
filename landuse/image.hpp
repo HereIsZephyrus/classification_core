@@ -9,4 +9,7 @@ namespace weilaicheng{
 void generateFeatureImage(cv::Mat& rawImage);
 bool GenerateFeatureChannels(std::vector<cv::Mat> &channels);
 }
+namespace ningbo{
+bool ReadRawImage(int year,cv::Mat& rawImage,std::vector<float>& MINVAL,std::vector<float>& MAXVAL);
+}
 #endif

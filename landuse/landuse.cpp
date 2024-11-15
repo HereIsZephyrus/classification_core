@@ -82,13 +82,13 @@ int SeriesMain(){
     using std::vector;
     // supervision train sample
     unsigned int classNum = UrbanChange::LandType;
-    urban_StaticPara* = classParas = new urban_StaticPara[classNum];
+    urban_StaticPara* classParas = new urban_StaticPara[classNum];
     for (unsigned int classID = 0; classID < classNum; classID++)
         classParas[classID].InitClassType(static_cast<UrbanChange>(classID));
     vector<urban_Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
-    vector<UrbanChange> trueClasses2022;
+    classMat trueClasses2022;
     ReadTrueClasses(trueClasses2022);
 
     // classifiy series
@@ -149,10 +149,12 @@ bool StudySamples(land_StaticPara* classParas,std::vector<land_Sample>& dataset)
         data->scalingFeatures(MAXVAL,MINVAL);
     return true;
 }
-}
+}//namespace weilaicheng
 
 namespace ningbo{
 using std::vector;
+using vClasses = vector<UrbanChange>;
+using classMat = vector<vClasses>;
 bool StudySamples(urban_StaticPara* classParas,vector<urban_Sample>& dataset){
     return true;
 }
@@ -189,10 +191,24 @@ bool SeriesAnalysis(const vector<std::unique_ptr<Classified>>& imageSeries,
                     vector<double>& increasingRate,vector<char>& increasingDirection){
     return true;
 }
-bool ReadRawImage(int year,cv::Mat& rawImage,vFloat& MINVAL,vFloat& MAXVAL){
-    return true;
-}
-bool ReadTrueClasses(vector<UrbanChange>& trueClasses2022){
+bool ReadTrueClasses(classMat& trueClasses2022){
+    using namespace ningbo;
+    cv::Mat classifiedImage = cv::imread("../landuse/ningbo/true_classified-clip.tif");
+    for (int i = 0; i < classifiedImage.rows; i++){
+        vClasses trueClassesRow;
+        for (int j = 0; j < classifiedImage.cols; j++){
+            uchar value = classifiedImage.at<uchar>(j,i);
+            if (value == 10 || value == 30)
+                trueClassesRow.push_back(UrbanChange::Greenland);
+            else if (value == 40)
+                trueClassesRow.push_back(UrbanChange::CropLand);
+            else if (value == 50)
+                trueClassesRow.push_back(UrbanChange::Imprevious);
+            else if (value == 60)
+                trueClassesRow.push_back(UrbanChange::Bareland);
+        }
+        trueClasses2022.push_back(trueClassesRow);
+    }
     return true;
 }
 bool FindBestClassifier(std::shared_ptr<Classified> classified,
@@ -200,3 +216,4 @@ bool FindBestClassifier(std::shared_ptr<Classified> classified,
                         const vector<cv::Mat>& classifiedImages){
     return true;
 }
+}//namespace ningbo

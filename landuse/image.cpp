@@ -60,3 +60,8 @@ bool GenerateFeatureChannels(std::vector<cv::Mat> &channels){
     return true;
 }
 }
+namespace ningbo{
+bool ReadRawImage(int year,cv::Mat& rawImage,std::vector<float>& MINVAL,std::vector<float>& MAXVAL){
+    return true;
+}
+}

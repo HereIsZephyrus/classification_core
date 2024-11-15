@@ -63,7 +63,6 @@ std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::UNCLASSIFIED,cv::Scalar(255,255,255)}, // black
 };
 bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
-    using namespace weilaicheng;
     unsigned int* countings = new unsigned int[LandCover::CoverType];
     unsigned int totalRecord = 0;
     for (int i = 0; i < LandCover::CoverType; i++)
@@ -142,7 +141,7 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
 }
 
 template<>
-void urban_StaticPara::InitClassType(ningbo::UrbanChange ID){
+void urban_StaticPara::InitClassType(ningbo::LandCover ID){
     recordNum = 0;
     classID = ID;
     avg.clear();
@@ -175,8 +174,25 @@ void urban_StaticPara::Sampling(const std::string& entryPath){
     return;
 }
 namespace ningbo{
+vFloat MAXVAL(Spectra::SpectralNum * 2),MINVAL(Spectra::SpectralNum * 2);
+std::unordered_map<LandCover,std::string> classFolderNames = {
+    {LandCover::Water,"Water"},
+    {LandCover::Greenland,"Greenland"},
+    {LandCover::Bareland,"Bareland"},
+    {LandCover::Imprevious,"Imprevious"},
+    {LandCover::CropLand,"CropLand"},
+};
+std::unordered_map<LandCover,cv::Scalar> classifyColor = {
+    {LandCover::Water,cv::Scalar(255,0,0)}, // blue
+    {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
+    {LandCover::CropLand,cv::Scalar(0,255,255)}, // yellow
+    {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone
+    {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
+    {LandCover::Edge,cv::Scalar(255,255,255)}, // white
+    {LandCover::Cloud,cv::Scalar(198,198,198)}, // gray
+    {LandCover::UNCLASSIFIED,cv::Scalar(255,255,255)}, // black
+};
 bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
-    using namespace weilaicheng;
     unsigned int* countings = new unsigned int[LandCover::CoverType];
     unsigned int totalRecord = 0;
     for (int i = 0; i < LandCover::CoverType; i++)
@@ -206,6 +222,8 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
             countings[LandCover::Bareland]++;
         else if (value == "Imprevious")
             countings[LandCover::Imprevious]++;
+        else if (value == "CropLand")
+            countings[LandCover::CropLand]++;
     }
     file.close();
     for (int i = 0; i < LandCover::CoverType; i++)
@@ -214,6 +232,7 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
     return true;
 }
 void Classified::CalcUrbanMorphology(){
+    
     return;
 }
 }
