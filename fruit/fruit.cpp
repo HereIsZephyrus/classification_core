@@ -111,5 +111,6 @@ int FisherMethod(const cv::Mat& correctImage){
     cv::waitKey(0);
     cv::destroyWindow("classified Image");
     classifier->printPhoto(classified);
+    delete classifier;
     return 0; 
 }
