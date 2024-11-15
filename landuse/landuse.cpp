@@ -166,7 +166,7 @@ std::shared_ptr<Classified> classifySingleYear(const vector<urban_Sample>& datas
     for (vector<std::string>::const_iterator classifierName = classifierForUse.begin(); classifierName != classifierForUse.end(); classifierName++){
         BaseClassifier* classifier;
         if (*classifierName == "bayes")
-            classifier = new urban_NaiveBayesClassifier();
+            classifier = new urban_NaiveBayesClassifier(year);
         else if (*classifierName == "fisher")
             classifier = new urban_FisherClassifier();
         else if (*classifierName == "svm")

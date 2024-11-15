@@ -84,8 +84,12 @@ typedef T_StaticPara<ningbo::UrbanChange> urban_StaticPara;
 typedef T_Sample<ningbo::UrbanChange> urban_Sample;
 namespace ningbo{
 class urban_NaiveBayesClassifier : public T_NaiveBayesClassifier<UrbanChange>{
+    int year;
     size_t getClassNum() const override{return UrbanChange::LandType;}
     bool CalcClassProb(float* prob) override;
+public:
+    urban_NaiveBayesClassifier(int year):year(year){}
+    int getYear() const {return year;}
 };
 class urban_FisherClassifier : public T_FisherClassifier<UrbanChange>{
     size_t getClassNum() const override{return UrbanChange::LandType;}

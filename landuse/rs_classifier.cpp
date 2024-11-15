@@ -12,7 +12,6 @@
 #include <filesystem>
 #include "rs_classifier.hpp"
 using namespace Eigen;
-using weilaicheng::classifierKernelSize;
 template<>
 void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
     recordNum = 0;
@@ -23,6 +22,7 @@ void land_StaticPara::InitClassType(weilaicheng::LandCover ID){
 }
 template<>
 void land_StaticPara::Sampling(const std::string& entryPath){
+    using weilaicheng::classifierKernelSize;
     using namespace weilaicheng;
     std::vector<cv::Mat> channels;
     cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);
@@ -138,5 +138,82 @@ void land_SVMClassifier::Train(const std::vector<land_Sample>& dataset){
             classifier->train(dataset,classPN,classLabeli);
             classifiers.push_back(std::move(classifier));
         }
+}
+}
+
+template<>
+void urban_StaticPara::InitClassType(ningbo::UrbanChange ID){
+    recordNum = 0;
+    classID = ID;
+    avg.clear();
+    var.clear();
+    return;
+}
+template<>
+void urban_StaticPara::Sampling(const std::string& entryPath){
+    using ningbo::classifierKernelSize;
+    using namespace weilaicheng;
+    std::vector<cv::Mat> channels;
+    cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);// !! not finished read multi tif and merge
+    const unsigned int patchRows = channels[0].rows, patchCols = channels[0].cols;
+    for (unsigned int left = 0; left < patchCols - classifierKernelSize + 1; left+=classifierKernelSize/2){
+        for (unsigned int top = 0; top < patchRows - classifierKernelSize + 1; top+=classifierKernelSize/2){
+            cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
+            vFloat means, vars;
+            for (unsigned int i = 0; i < weilaicheng::Spectra::SpectralNum; i++){
+                cv::Mat viewingPatch = channels[i](window);
+                cv::Scalar mean, stddev;
+                cv::meanStdDev(viewingPatch, mean, stddev);
+                means.push_back(mean[0]);
+                vars.push_back(stddev[0] * stddev[0]);
+            }
+            avg.push_back(means);
+            var.push_back(vars);
+            recordNum++;
+        }
+    }
+    return;
+}
+namespace ningbo{
+bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
+    using namespace weilaicheng;
+    unsigned int* countings = new unsigned int[LandCover::CoverType];
+    unsigned int totalRecord = 0;
+    for (int i = 0; i < LandCover::CoverType; i++)
+        countings[i] = 0;
+    std::string filename = "../landuse/ningbo/sampling/classification.csv";
+    std::ifstream file(filename);
+    std::string line;
+    if (!file.is_open()) {
+        std::cerr << "can't open file!" << filename << std::endl;
+        return false;
+    }
+    std::getline(file, line);// throw header
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string value;
+        std::vector<std::string> row;
+        std::getline(ss, value, ',');
+        if (std::to_string(year) != value)
+            continue;
+        while (std::getline(ss, value, ',')) {}
+        totalRecord++;
+        if (value == "Water")
+            countings[LandCover::Water]++;
+        else if (value == "Greenland")
+            countings[LandCover::Greenland]++;
+        else if (value == "Bareland")
+            countings[LandCover::Bareland]++;
+        else if (value == "Imprevious")
+            countings[LandCover::Imprevious]++;
+    }
+    file.close();
+    for (int i = 0; i < LandCover::CoverType; i++)
+        prob[i] = static_cast<float>(countings[i]) / totalRecord;
+    delete[] countings;
+    return true;
+}
+void Classified::CalcUrbanMorphology(){
+    return;
 }
 }
