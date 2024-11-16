@@ -9,7 +9,6 @@
 #include "../t_classifier.hpp"
 #include "image.hpp"
 namespace weilaicheng{
-constexpr float trainRatio = 0.8f;
 enum LandCover : unsigned int{
     Water,
     Greenland,
@@ -31,6 +30,7 @@ extern std::unordered_map<LandCover,std::string> classFolderNames;
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 extern vFloat MAXVAL,MINVAL;
 constexpr int classifierKernelSize = 9;
+constexpr float trainRatio = 0.8f;
 }
 typedef T_StaticPara<weilaicheng::LandCover> land_StaticPara;
 typedef T_Sample<weilaicheng::LandCover> land_Sample;
@@ -80,9 +80,11 @@ extern std::unordered_map<LandCover,std::string> classFolderNames;
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 extern vFloat MINVAL,MAXVAL;
 constexpr int classifierKernelSize = 9;
+constexpr float trainRatio = 0.8f;
 }
 typedef T_StaticPara<ningbo::LandCover> urban_StaticPara;
 typedef T_Sample<ningbo::LandCover> urban_Sample;
+typedef std::pair<int,cv::Mat> YearImage;
 namespace ningbo{
 class urban_NaiveBayesClassifier : public T_NaiveBayesClassifier<LandCover>{
     int year;
@@ -107,11 +109,17 @@ class urban_RandomForestClassifier : public T_RandomForestClassifier<LandCover>{
     size_t getClassNum() const override{return LandCover::CoverType;}
 };
 class Classified{
-    cv::Mat image,urbanMask;
+    std::shared_ptr<cv::Mat> image,urbanMask;
     double area;
-    void CalcUrbanMorphology();
 public:
     Classified() = default;
+    std::shared_ptr<cv::Mat> getUrbanMask() const {return urbanMask;}
+    double getArea() const {return area;}
+    void setImage(const cv::Mat& classified){image = std::shared_ptr<cv::Mat>(new cv::Mat(classified));}
+    void CalcUrbanMorphology();
+    void Examine(const vector<urban_Sample>& dataset){
+
+    }
 };
 }
 #endif

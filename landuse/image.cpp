@@ -1,6 +1,6 @@
 #include "image.hpp"
 namespace weilaicheng{
-void generateFeatureImage(cv::Mat& rawImage){
+void GenerateFeatureImage(cv::Mat& rawImage){
     cv::Mat image = cv::imread(FutureCityImage, cv::IMREAD_UNCHANGED);
     rawImage = image.clone();
     double minVal, maxVal;
@@ -61,7 +61,15 @@ bool GenerateFeatureChannels(std::vector<cv::Mat> &channels){
 }
 }
 namespace ningbo{
+bool GenerateFeatureImage(int year,cv::Mat& featureImage){
+
+    return true;
+}
 bool ReadRawImage(int year,cv::Mat& rawImage,std::vector<float>& MINVAL,std::vector<float>& MAXVAL){
     return true;
+}
+char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Mat> currentImage){
+    char mainIncreaseDirection = 0;
+    return mainIncreaseDirection;
 }
 }

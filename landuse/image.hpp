@@ -6,10 +6,12 @@
 #include <cstring>
 #include <string>
 namespace weilaicheng{
-void generateFeatureImage(cv::Mat& rawImage);
+void GenerateFeatureImage(cv::Mat& rawImage);
 bool GenerateFeatureChannels(std::vector<cv::Mat> &channels);
 }
 namespace ningbo{
+bool GenerateFeatureImage(int year,cv::Mat& featureImage);
 bool ReadRawImage(int year,cv::Mat& rawImage,std::vector<float>& MINVAL,std::vector<float>& MAXVAL);
+char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Mat> currentImage);
 }
 #endif

@@ -102,12 +102,19 @@ public:
             f1[tp->first] = 2*precision[tp->first]*recall[tp->first]/(precision[tp->first]+recall[tp->first]);
         }
     }
-    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Scalar>& classifyColor){
+    unordered_map<classType,float> getPrecision() const {return precision;}
+    unordered_map<classType,float> getRecall() const {return recall;}
+    unordered_map<classType,float> getF1() const {return f1;}
+    double getComprehensiveAccuracy(){
+
+        return 0;
+    }
+    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize){
         int classNum = getClassNum();
         using ClassMat = vector<vector<classType>>;
         using vClasses = vector<classType>;
         int rows = featureImage.rows, cols = featureImage.cols;
-        vector<vector<classType>> patchClasses,pixelClasses;
+        vector<vector<classType>> patchClasses;
         for (int r = classifierKernelSize/2; r <= rows - classifierKernelSize; r+=classifierKernelSize/2){
             vClasses rowClasses;
             bool lastRowCheck = (r >= (rows - classifierKernelSize));
@@ -193,6 +200,10 @@ public:
             }
             pixelClasses.push_back(temprow);
         }
+    }
+    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Scalar>& classifyColor){
+        vector<vector<classType>> pixelClasses;
+        Classify(featureImage,pixelClasses,edgeType,minVal,maxVal,classifierKernelSize);
         classified = cv::Mat::zeros(featureImage.rows, featureImage.cols, CV_8UC3);
         classified.setTo(cv::Scalar(255,255,255));
         int y = 0;
