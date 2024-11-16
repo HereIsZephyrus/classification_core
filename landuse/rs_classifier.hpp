@@ -112,14 +112,12 @@ class Classified{
     std::shared_ptr<cv::Mat> image,urbanMask;
     double area;
 public:
+    Accuracy<LandCover> accuracy;
     Classified() = default;
     std::shared_ptr<cv::Mat> getUrbanMask() const {return urbanMask;}
     double getArea() const {return area;}
     void setImage(const cv::Mat& classified){image = std::shared_ptr<cv::Mat>(new cv::Mat(classified));}
     void CalcUrbanMorphology();
-    void Examine(const vector<urban_Sample>& dataset){
-
-    }
 };
 }
 #endif

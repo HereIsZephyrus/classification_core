@@ -56,33 +56,21 @@ public:
     bool isTrainSample() const{return isTrain;}
 };
 template <class classType>
-class T_Classifier{
-using Dataset = vector<T_Sample<classType>>;
+class Accuracy{
+using uniteClass = std::pair<classType,classType>;
 protected:
-    size_t featureNum;
-    std::string classifierName;
-    unordered_map<classType,float> precision,recall,f1;
-    bool CalcChannelMeanStds(const vector<cv::Mat> & channels, vFloat & data){
-        data.clear();
-        for (vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
-            cv::Scalar mean, stddev;
-            cv::meanStdDev(*it, mean, stddev);
-            data.push_back(cv::mean(*it)[0]);
-            data.push_back(stddev[0] * stddev[0]);
-        }
-        return true;
-    }
+    unordered_map<uniteClass,float> confuseMat;
+    unordered_map<classType,float> f1,precision,recall;
 public:
-    T_Classifier(){classifierName = "classifier";}
-    virtual classType Predict(const vFloat& x) = 0;
-    virtual size_t getClassNum() const{return 0;}
-    virtual void Train(const Dataset &dataset) = 0;
+    Accuracy() = default;
     void Examine(const Dataset& samples){
-        unordered_map<classType,int> TP,FP,FN;
+        confuseMat.clear();
+        unordered_map<classType,float> TP,FP,FN;
         for (typename Dataset::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())
                 continue;
             classType trueLabel = it->getLabel(), predictLabel = Predict(it->getFeatures());
+            confuseMat[std::make_pair(trueLabel,predictLabel)]++;
             if (predictLabel == trueLabel)
                 ++TP[predictLabel];
             else{
@@ -105,10 +93,58 @@ public:
     unordered_map<classType,float> getPrecision() const {return precision;}
     unordered_map<classType,float> getRecall() const {return recall;}
     unordered_map<classType,float> getF1() const {return f1;}
-    double getComprehensiveAccuracy(){
-
-        return 0;
+    float getComprehensiveAccuracy(){
+        float accuracy = 0.0f;
+        for (typename unordered_map<classType,float>::const_iterator it = f1.begin(); it != f1.end(); it++)
+            accuracy += it->second;
+        accuracy /= f1.size();
+        return accuracy;
     }
+
+    void PrintPrecision(const unordered_map<classType,std::string>& classNames,std::string path = "./"){
+        std::string fileName = path + classifierName + std::string(".txt");
+        std::ofstream outFile(fileName);
+        outFile << "Confuse Matrix: " << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className1 = classNames.begin(); className1 != classNames.end(); className1++){
+            for (typename unordered_map<classType,std::string>::const_iterator className2 = classNames.begin(); className2 != classNames.end(); className2++){
+                outFile<< confuseMat[uniteClass(className1->first,className2->first)] << " ";
+            }
+            outFile << std::endl;
+        }
+        outFile << "Precision: " << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
+            outFile << className->second << " - " << precision[className->first] << std::endl;
+        outFile << "Recall: " << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
+            outFile << className->second << " - " << recall[className->first] << std::endl;
+        outFile << "F1: "  << std::endl;
+        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
+            outFile << className->second << " - " << f1[className->first] << std::endl;
+    }
+};
+template <class classType>
+class T_Classifier{
+using Dataset = vector<T_Sample<classType>>;
+using uniteClass = std::pair<classType,classType>;
+protected:
+    size_t featureNum;
+    std::string classifierName;
+    bool CalcChannelMeanStds(const vector<cv::Mat> & channels, vFloat & data){
+        data.clear();
+        for (vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
+            cv::Scalar mean, stddev;
+            cv::meanStdDev(*it, mean, stddev);
+            data.push_back(cv::mean(*it)[0]);
+            data.push_back(stddev[0] * stddev[0]);
+        }
+        return true;
+    }
+public:
+    Accuracy<classType> accuracy;
+    T_Classifier(){classifierName = "classifier";}
+    virtual classType Predict(const vFloat& x) = 0;
+    virtual size_t getClassNum() const{return 0;}
+    virtual void Train(const Dataset &dataset) = 0;
     void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize){
         int classNum = getClassNum();
         using ClassMat = vector<vector<classType>>;
@@ -222,19 +258,6 @@ public:
     void printPhoto(const cv::Mat& classified,std::string path = "./") const{
         std::string photoName = path + classifierName + std::string(".png");
         cv::imwrite(photoName,classified);
-    }
-    void PrintPrecision(const unordered_map<classType,std::string>& classNames,std::string path = "./"){
-        std::string fileName = path + classifierName + std::string(".txt");
-        std::ofstream outFile(fileName);
-        outFile << "Precision: " << std::endl;
-        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
-            outFile << className->second << " : " << precision[className->first] << std::endl;
-        outFile << "Recall: " << std::endl;
-        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
-            outFile << className->second << " : " << recall[className->first] << std::endl;
-        outFile << "F1: "  << std::endl;
-        for (typename unordered_map<classType,std::string>::const_iterator className = classNames.begin(); className != classNames.end(); className++)
-            outFile << className->second << " : " << f1[className->first] << std::endl;
     }
     void Print(const cv::Mat& classified,const unordered_map<classType,std::string>& classNames,std::string path = "./"){
         printPhoto(classified,path);

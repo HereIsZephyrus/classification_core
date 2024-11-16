@@ -22,7 +22,7 @@ int LanduseMain(){
         cv::Mat classified;
         bayes->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Naive Bayes", classified);
-        bayes->Examine(dataset);
+        bayes->accuracy.Examine(dataset);
         bayes->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Naive Bayes");
@@ -34,7 +34,7 @@ int LanduseMain(){
         cv::Mat classified;
         fisher->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Fisher", classified);
-        fisher->Examine(dataset);
+        fisher->accuracy.Examine(dataset);
         fisher->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Fisher");
@@ -46,7 +46,7 @@ int LanduseMain(){
         cv::Mat classified;
         svm->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("SVM", classified);
-        svm->Examine(dataset);
+        svm->accuracy.Examine(dataset);
         svm->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("SVM");
@@ -58,7 +58,7 @@ int LanduseMain(){
         cv::Mat classified;
         bp->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("BP", classified);
-        bp->Examine(dataset);
+        bp->accuracy.Examine(dataset);
         bp->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("BP");
@@ -70,7 +70,7 @@ int LanduseMain(){
         cv::Mat classified;
         randomforest->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Random Forest", classified);
-        randomforest->Examine(dataset);
+        randomforest->accuracy.Examine(dataset);
         randomforest->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Random Forest");
@@ -184,11 +184,11 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
         classMat singleYearPixelClasses;
         classifier->Classify(yearImage.second,singleYearPixelClasses,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize);
         pixelClasses.push_back(singleYearPixelClasses);
-        classifier->Examine(dataset);
+        classifier->accuracy.Examine(dataset);
         classifiers.push_back(std::unique_ptr<BaseClassifier>(classifier));
     }
     CombinedClassifier(classified,classifiers,pixelClasses,yearImage.second,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
-    classified->Examine(dataset);
+    classified->accuracy.Examine(dataset);
     return classified;
 }
 bool SeriesAnalysis(const vector<std::shared_ptr<Classified>>& imageSeries,
@@ -237,20 +237,20 @@ bool CombinedClassifier(std::shared_ptr<Classified> classified,
                         const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,
                         const std::unordered_map<LandCover,cv::Scalar>& classifyColor){
     using ClassMat = vector<vector<LandCover>>;
-    vector<double> accuracy;
+    vector<float> accuracy;
     for (vector<std::unique_ptr<T_Classifier<LandCover>>>::const_iterator classifier = classifiers.begin(); classifier != classifiers.end(); classifier++)
-        accuracy.push_back((*classifier)->getComprehensiveAccuracy());
+        accuracy.push_back((*classifier)->accuracy.getComprehensiveAccuracy());
     ClassMat combinedClasses;
     size_t classifierNum = classifiers.size(),classesRow = pixelClasses.size(),classesCol = pixelClasses[0].size();
     for (size_t y = 0; y < classesRow; y++){
         vector<LandCover> combinedClassesRow;
         for (size_t x = 0; x < classesCol; x++){
-            std::unordered_map<LandCover,double> voteRes;
+            std::unordered_map<LandCover,float> voteRes;
             for (size_t i = 0 ; i < classifierNum; i++)
                 voteRes[pixelClasses[i][y][x]] += accuracy[i];
             LandCover resClass = LandCover::UNCLASSIFIED;
-            double maxProb = 0.0;
-            for (std::unordered_map<LandCover,double>::const_iterator vote = voteRes.begin(); vote != voteRes.end(); vote++)
+            float maxProb = 0.0;
+            for (std::unordered_map<LandCover,float>::const_iterator vote = voteRes.begin(); vote != voteRes.end(); vote++)
                 if (vote->second > maxProb){
                     maxProb = vote->second;
                     resClass = vote->first;
