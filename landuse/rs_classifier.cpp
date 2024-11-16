@@ -232,7 +232,7 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
     return true;
 }
 void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
-    using Point = std::pair<int,int>;
+    using cv::Point;
     vector<Point> impreviousPoints;
     for (int y = 0; y < image->rows; ++y)
         for (int x = 0; x < image->cols; ++x)
@@ -244,7 +244,7 @@ void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
     for (vector<Point>::const_iterator point = impreviousPoints.begin(); point != impreviousPoints.end(); point++)
         for (int y = 0; y < density.rows; ++y)
             for (int x = 0; x < density.cols; ++x) {
-                double distSqr = (point->first - x) * (point->first - x) + (point->second - y) * (point->second - y);
+                double distSqr = (point->x - x) * (point->x - x) + (point->y - y) * (point->y - y);
                 if (distSqr < bandwidthSqr)
                     density.at<float>(y, x) += kernelScale * exp(-0.5 * distSqr / bandwidthSqr);
             }
@@ -273,4 +273,10 @@ void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
     urbanMask = std::shared_ptr<cv::Mat>(new cv::Mat(filledImage));
     return;
 }
+void Classified::Examine(const vector<urban_Sample>& samples){
+
 }
+void Classified::Print(){
+    
+}
+}// namespace ningbo

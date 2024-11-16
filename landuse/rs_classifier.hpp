@@ -91,8 +91,9 @@ class urban_NaiveBayesClassifier : public T_NaiveBayesClassifier<LandCover>{
     size_t getClassNum() const override{return LandCover::CoverType;}
     bool CalcClassProb(float* prob) override;
 public:
-    urban_NaiveBayesClassifier(int year):year(year){}
+    urban_NaiveBayesClassifier(){}
     int getYear() const {return year;}
+    void setYear(int year) override{this->year = year;}
 };
 class urban_FisherClassifier : public T_FisherClassifier<LandCover>{
     size_t getClassNum() const override{return LandCover::CoverType;}
@@ -118,6 +119,8 @@ public:
     double getArea() const {return area;}
     void setImage(const cv::Mat& classified){image = std::shared_ptr<cv::Mat>(new cv::Mat(classified));}
     void CalcUrbanMorphology(const cv::Scalar& impreviousColor);
+    void Examine(const vector<urban_Sample>& samples);
+    void Print();
 };
 }
 #endif

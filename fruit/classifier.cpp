@@ -153,42 +153,42 @@ bool NonNaiveBayesClassifier::CalcClassProb(float* prob){
     return true;
 }
 void NonNaiveBayesClassifier::train(const std::vector<Sample>& samples,const float* classProbs){
-    featureNum = samples[0].getFeatures().size(); //select all
-    //std::cout<<featureNum<<std::endl;
-    para.clear();
-    para.resize(getClassNum());
+    this->featureNum = samples[0].getFeatures().size(); //select all
+    //std::cout<<this->featureNum<<std::endl;
+    this->para.clear();
+    this->para.resize(getClassNum());
     unsigned int classNum = getClassNum();
     std::vector<double> classifiedFeaturesAvg[classNum];
     for (int i = 0; i < classNum; i++){
-        classifiedFeaturesAvg[i].assign(featureNum,0.0);
-        para[i].convMat = new float*[featureNum];
-        for (size_t j = 0; j < featureNum; j++)
-            para[i].convMat[j] = new float[featureNum];
-        para[i].invMat = new float*[featureNum];
-        for (size_t j = 0; j < featureNum; j++)
-            para[i].invMat[j] = new float[featureNum];
+        classifiedFeaturesAvg[i].assign(this->featureNum,0.0);
+        this->para[i].convMat = new float*[this->featureNum];
+        for (size_t j = 0; j < this->featureNum; j++)
+            this->para[i].convMat[j] = new float[this->featureNum];
+        this->para[i].invMat = new float*[this->featureNum];
+        for (size_t j = 0; j < this->featureNum; j++)
+            this->para[i].invMat[j] = new float[this->featureNum];
     }
     std::vector<size_t> classRecordNum(classNum,0);
     std::vector<std::vector<vFloat>> sampleBucket(classNum);
     for (unsigned int i = 0; i < classNum; i++)
-        sampleBucket[i].resize(featureNum);
+        sampleBucket[i].resize(this->featureNum);
     for (std::vector<Sample>::const_iterator it = samples.begin(); it != samples.end(); it++){
         unsigned int label = static_cast<unsigned int>(it->getLabel());
         const vFloat& sampleFeature = it->getFeatures();
-        for (unsigned int i = 0; i < featureNum; i++){
+        for (unsigned int i = 0; i < this->featureNum; i++){
             classifiedFeaturesAvg[label][i] += sampleFeature[i];
             sampleBucket[label][i].push_back(sampleFeature[i]);
         }
         classRecordNum[label]++;
     }
     for (unsigned int i = 0; i < classNum; i++){
-        for (unsigned int j = 0; j < featureNum; j++)
+        for (unsigned int j = 0; j < this->featureNum; j++)
             classifiedFeaturesAvg[i][j] /= classRecordNum[i];
-        CalcConvMat(para[i].convMat,para[i].invMat,sampleBucket[i]);
+        CalcConvMat(this->para[i].convMat,this->para[i].invMat,sampleBucket[i]);
     }
     for (unsigned int i = 0; i < classNum; i++){
-        para[i].w = classProbs[i];
-        para[i].mu = classifiedFeaturesAvg[i];
+        this->para[i].w = classProbs[i];
+        this->para[i].mu = classifiedFeaturesAvg[i];
     }
     return;
 };

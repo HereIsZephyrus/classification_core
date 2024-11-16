@@ -22,7 +22,7 @@ int LanduseMain(){
         cv::Mat classified;
         bayes->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Naive Bayes", classified);
-        bayes->accuracy.Examine(dataset);
+        bayes->Examine(dataset);
         bayes->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Naive Bayes");
@@ -34,7 +34,7 @@ int LanduseMain(){
         cv::Mat classified;
         fisher->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Fisher", classified);
-        fisher->accuracy.Examine(dataset);
+        fisher->Examine(dataset);
         fisher->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Fisher");
@@ -46,7 +46,7 @@ int LanduseMain(){
         cv::Mat classified;
         svm->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("SVM", classified);
-        svm->accuracy.Examine(dataset);
+        svm->Examine(dataset);
         svm->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("SVM");
@@ -58,7 +58,7 @@ int LanduseMain(){
         cv::Mat classified;
         bp->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("BP", classified);
-        bp->accuracy.Examine(dataset);
+        bp->Examine(dataset);
         bp->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("BP");
@@ -70,7 +70,7 @@ int LanduseMain(){
         cv::Mat classified;
         randomforest->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Random Forest", classified);
-        randomforest->accuracy.Examine(dataset);
+        randomforest->Examine(dataset);
         randomforest->Print(classified,classFolderNames);
         cv::waitKey(0);
         cv::destroyWindow("Random Forest");
@@ -97,7 +97,7 @@ int SeriesMain(){
         GenerateFeatureImage(year,featureImage,MINVAL,MAXVAL);
         classifyYears.push_back(std::make_pair(year,featureImage));
     }
-    classMat trueClasses2022;
+    vector<vector<LandCover>> trueClasses2022;
     ReadTrueClasses(trueClasses2022);
 
     // classifiy series
@@ -170,8 +170,10 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
     vector<classMat> pixelClasses;
     for (vector<std::string>::const_iterator classifierName = classifierForUse.begin(); classifierName != classifierForUse.end(); classifierName++){
         BaseClassifier* classifier;
-        if (*classifierName == "bayes")
-            classifier = new urban_NaiveBayesClassifier(yearImage.first);
+        if (*classifierName == "bayes"){
+            classifier = new urban_NaiveBayesClassifier();
+            classifier->setYear(yearImage.first);
+        }
         else if (*classifierName == "fisher")
             classifier = new urban_FisherClassifier();
         else if (*classifierName == "svm")
@@ -184,12 +186,12 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
         classMat singleYearPixelClasses;
         classifier->Classify(yearImage.second,singleYearPixelClasses,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize);
         pixelClasses.push_back(singleYearPixelClasses);
-        classifier->accuracy.Examine(dataset);
+        classifier->Examine(dataset);
         classifiers.push_back(std::unique_ptr<BaseClassifier>(classifier));
     }
     CombinedClassifier(classified,classifiers,pixelClasses,yearImage.second,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
     classified->CalcUrbanMorphology(classifyColor[LandCover::Imprevious]);
-    classified->accuracy.Examine(dataset);
+    classified->Examine(dataset);
     return classified;
 }
 bool SeriesAnalysis(const vector<std::shared_ptr<Classified>>& imageSeries,
