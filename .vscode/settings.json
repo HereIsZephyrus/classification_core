@@ -61,6 +61,7 @@
         "variant": "cpp",
         "algorithm": "cpp",
         "filesystem": "cpp",
-        "dense": "cpp"
+        "dense": "cpp",
+        "regex": "cpp"
     }
 }

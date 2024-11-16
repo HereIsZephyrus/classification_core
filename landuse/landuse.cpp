@@ -85,11 +85,6 @@ int SeriesMain(){
     vector<YearImage> classifyYears;
     //vector<int> classifyYears = {2022}; // TestClassifierFor2022
     // supervision train sample
-    for (int year = 1997; year <=2022; year+=5){
-        cv::Mat featureImage;
-        GenerateFeatureImage(year,featureImage);
-        classifyYears.push_back(std::make_pair(year,featureImage));
-    }
     unsigned int classNum = LandCover::CoverType;
     urban_StaticPara* classParas = new urban_StaticPara[classNum];
     for (unsigned int classID = 0; classID < classNum; classID++)
@@ -97,6 +92,11 @@ int SeriesMain(){
     vector<urban_Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
+    for (int year = 1997; year <=2022; year+=5){
+        cv::Mat featureImage;
+        GenerateFeatureImage(year,featureImage,MINVAL,MAXVAL);
+        classifyYears.push_back(std::make_pair(year,featureImage));
+    }
     classMat trueClasses2022;
     ReadTrueClasses(trueClasses2022);
 
@@ -188,6 +188,7 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
         classifiers.push_back(std::unique_ptr<BaseClassifier>(classifier));
     }
     CombinedClassifier(classified,classifiers,pixelClasses,yearImage.second,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
+    classified->CalcUrbanMorphology(classifyColor[LandCover::Imprevious]);
     classified->accuracy.Examine(dataset);
     return classified;
 }
@@ -274,7 +275,6 @@ bool CombinedClassifier(std::shared_ptr<Classified> classified,
             break;
     }
     classified->setImage(classifiedImage);
-    classified->CalcUrbanMorphology();
     return true;
 }
 bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& dataset){

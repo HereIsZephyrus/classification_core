@@ -1,6 +1,7 @@
 #ifndef IMAGEHPP
 #define IMAGEHPP
 #define FutureCityImage "../landuse/feature_city/futureCity.tif"
+#define SeriesFolder "../landuse/ningbo/data/"
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <cstring>
@@ -10,8 +11,7 @@ void GenerateFeatureImage(cv::Mat& rawImage);
 bool GenerateFeatureChannels(std::vector<cv::Mat> &channels);
 }
 namespace ningbo{
-bool GenerateFeatureImage(int year,cv::Mat& featureImage);
-bool ReadRawImage(int year,cv::Mat& rawImage,std::vector<float>& MINVAL,std::vector<float>& MAXVAL);
+bool GenerateFeatureImage(int year,cv::Mat& featureImage,std::vector<float>& minVal,std::vector<float>& maxVal);
 char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Mat> currentImage);
 }
 #endif

@@ -1,4 +1,7 @@
 #include "image.hpp"
+#include <filesystem>
+#include <regex>
+namespace fs = std::filesystem;
 namespace weilaicheng{
 void GenerateFeatureImage(cv::Mat& rawImage){
     cv::Mat image = cv::imread(FutureCityImage, cv::IMREAD_UNCHANGED);
@@ -61,11 +64,57 @@ bool GenerateFeatureChannels(std::vector<cv::Mat> &channels){
 }
 }
 namespace ningbo{
-bool GenerateFeatureImage(int year,cv::Mat& featureImage){
-
-    return true;
-}
-bool ReadRawImage(int year,cv::Mat& rawImage,std::vector<float>& MINVAL,std::vector<float>& MAXVAL){
+bool GenerateFeatureImage(int year,cv::Mat& featureImage,std::vector<float>& minVal,std::vector<float>& maxVal){
+    const float itcps[6] = {0.3, 8.8, 6.1, 41.2, 25.4, 17.2};
+    const float slopes[6] = {0.8474, 0.8483, 0.9047, 0.8462, 0.8937, 0.9071};
+    const int thresholdYear = 2015;
+    const char signal[6] = {'1','2','3','4','5','7'};
+    std::string folderPath = SeriesFolder + std::to_string(year) + "/";
+    cv::Mat quality;
+    std::vector<cv::Mat> bands;
+    std::regex band_pattern(".*B.{1}\\.TIF", std::regex_constants::icase);
+    std::regex QA_pattern(".*QA\\.TIF", std::regex_constants::icase);
+    if (!fs::exists(folderPath)) {
+        std::cerr << "Directory does not exist: " << folderPath << std::endl;
+        return 1;
+    }
+    for (const auto& entry : fs::directory_iterator(folderPath)) {
+        if (entry.is_regular_file()) {
+            std::string filename = entry.path().filename().string();
+            if (std::regex_match(filename, band_pattern))
+                bands.push_back(cv::imread(entry.path().string(), cv::IMREAD_UNCHANGED));
+            if (std::regex_match(filename, QA_pattern))
+                quality = cv::imread(entry.path().string(), cv::IMREAD_UNCHANGED);
+        }
+    }
+    int row = quality.rows,col = quality.cols;
+    cv::Mat cloudMask = cv::Mat::zeros(row,col,CV_8UC1);
+    cv::Mat shadowMask = cv::Mat::zeros(row,col,CV_8UC1);
+    for (int y = 0; y < row; y++){
+        for (int x = 0; x < col; x++){
+            uchar QAvalue = quality.at<uchar>(y,x);
+            QAvalue /= 2;
+            cloudMask.at<uchar>(y,x) = QAvalue%2;
+            QAvalue /= 2;
+            shadowMask.at<uchar>(y,x) = QAvalue%2;
+        }
+    }
+    for (int i = 0; i < 6; i++){
+        cv::Mat& band = bands[i];
+        for (int y = 0; y < row; y++){
+            for (int x = 0; x < col; x++){
+                if (cloudMask.at<uchar>(y,x) == 1){
+                    band.at<uchar>(y,x) = 0;
+                    continue;
+                }
+                if (shadowMask.at<uchar>(y,x) == 1)
+                    band.at<uchar>(y,x) *= 1.1;
+                band.at<uchar>(y,x) = band.at<uchar>(y,x) * slopes[i] + itcps[i];
+                band.at<uchar>(y,x) = (band.at<uchar>(y,x) - minVal[i]) * (255.0 / (maxVal[i] - minVal[i]));
+            }
+        }
+    }
+    cv::merge(bands,featureImage);
     return true;
 }
 char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Mat> currentImage){

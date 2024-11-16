@@ -117,7 +117,7 @@ public:
     std::shared_ptr<cv::Mat> getUrbanMask() const {return urbanMask;}
     double getArea() const {return area;}
     void setImage(const cv::Mat& classified){image = std::shared_ptr<cv::Mat>(new cv::Mat(classified));}
-    void CalcUrbanMorphology();
+    void CalcUrbanMorphology(const cv::Scalar& impreviousColor);
 };
 }
 #endif

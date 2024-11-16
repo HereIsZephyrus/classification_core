@@ -231,8 +231,41 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
     delete[] countings;
     return true;
 }
-void Classified::CalcUrbanMorphology(){
-    
+void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
+    using Point = std::pair<int,int>;
+    vector<Point> impreviousPoints;
+    for (int y = 0; y < image->rows; ++y)
+        for (int x = 0; x < image->cols; ++x)
+            if (image->at<cv::Scalar>(y, x) == impreviousColor)
+                impreviousPoints.push_back(Point(x, y));
+    cv::Mat density = cv::Mat::zeros(image->size(), CV_32FC1);
+    const double bandwidthSqr = 5.0 * 5.0;
+    const double kernelScale = 1.0 / (2 * CV_PI * bandwidthSqr);
+    for (vector<Point>::const_iterator point = impreviousPoints.begin(); point != impreviousPoints.end(); point++)
+        for (int y = 0; y < density.rows; ++y)
+            for (int x = 0; x < density.cols; ++x) {
+                double distSqr = (point->first - x) * (point->first - x) + (point->second - y) * (point->second - y);
+                if (distSqr < bandwidthSqr)
+                    density.at<float>(y, x) += kernelScale * exp(-0.5 * distSqr / bandwidthSqr);
+            }
+    normalize(density, density, 0, 255, cv::NORM_MINMAX);
+    density.convertTo(density, CV_8UC1);
+    vector<float> kdeValues;
+    density.reshape(1, density.total()).copyTo(kdeValues);
+    std::sort(kdeValues.begin(), kdeValues.end());
+    const float confidenceLevel = 0.95;
+    int index = static_cast<int>(confidenceLevel * kdeValues.size());
+    double threshold = kdeValues[index];
+    cv::Mat maskImage = density >= threshold;
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE,cv::Size(3, 3));
+    cv::morphologyEx(maskImage, maskImage, cv::MORPH_OPEN, kernel);
+    vector<vector<Point>> contours;
+    vector<cv::Vec4i> hierarchy;
+    findContours(maskImage, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::Mat filledImage = cv::Mat::zeros(maskImage.size(), CV_8UC1);
+    for (size_t i = 0; i < contours.size(); i++)
+        drawContours(filledImage, contours, (int)i, cv::Scalar(255), cv::FILLED);
+    urbanMask = std::shared_ptr<cv::Mat>(new cv::Mat(filledImage));
     return;
 }
 }
