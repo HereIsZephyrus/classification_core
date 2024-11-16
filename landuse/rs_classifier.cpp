@@ -265,6 +265,11 @@ void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
     cv::Mat filledImage = cv::Mat::zeros(maskImage.size(), CV_8UC1);
     for (size_t i = 0; i < contours.size(); i++)
         drawContours(filledImage, contours, (int)i, cv::Scalar(255), cv::FILLED);
+    area = 0;
+    for (int y = 0; y < filledImage.rows; ++y)
+        for (int x = 0; x < filledImage.cols; ++x)
+            if (filledImage.at<uchar>(y, x) == 255)
+                ++area;
     urbanMask = std::shared_ptr<cv::Mat>(new cv::Mat(filledImage));
     return;
 }

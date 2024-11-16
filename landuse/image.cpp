@@ -119,6 +119,31 @@ bool GenerateFeatureImage(int year,cv::Mat& featureImage,std::vector<float>& min
 }
 char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Mat> currentImage){
     char mainIncreaseDirection = 0;
+    int row = lastImage->rows,col = lastImage->cols;
+    std::vector<std::vector<int>> matrix(row,std::vector<int>(col,0));
+    for (int y = 0; y < row; y++){
+        for (int x = 0; x < col; x++){
+            uchar lastValue = lastImage->at<uchar>(y,x);
+            uchar currentValue = currentImage->at<uchar>(y,x);
+            matrix[y][x] = currentValue - lastValue;
+        }
+    }
+    int count[8];
+    for (int i = 0; i < 8; i++)    count[i] = 0;
+    for (int y = 0; y < row; y++)
+        for (int x = 0; x < col; x++){
+            int id = 0;
+            if (x < col/2)    id += 4;
+            if (y >= row/2)    id += 2;
+            if (std::abs(x - col/2) / col < std::abs(y - row/2) / row)    id += 1;
+            count[id] ++;
+        }
+    int maxCount = 0;
+    for (int i = 0; i < 8; i++)
+        if (count[i] > maxCount){
+            maxCount = count[i];
+            mainIncreaseDirection = i;
+        }
     return mainIncreaseDirection;
 }
 }
