@@ -49,10 +49,10 @@ void land_StaticPara::Sampling(const std::string& entryPath){
 namespace weilaicheng{
 vFloat MAXVAL(Spectra::SpectralNum * 2),MINVAL(Spectra::SpectralNum * 2);
 std::unordered_map<LandCover,std::string> classFolderNames = {
-    {LandCover::Water,"Water"},
-    {LandCover::Greenland,"Greenland"},
-    {LandCover::Bareland,"Bareland"},
-    {LandCover::Imprevious,"Imprevious"},
+    {LandCover::Water,"water"},
+    {LandCover::Greenland,"greenland"},
+    {LandCover::Bareland,"bareland"},
+    {LandCover::Imprevious,"imprevious"},
 };
 std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::Water,cv::Scalar(255,0,0)}, // blue
@@ -176,11 +176,11 @@ void urban_StaticPara::Sampling(const std::string& entryPath){
 namespace ningbo{
 vFloat MAXVAL(Spectra::SpectralNum * 2),MINVAL(Spectra::SpectralNum * 2);
 std::unordered_map<LandCover,std::string> classFolderNames = {
-    {LandCover::Water,"Water"},
-    {LandCover::Greenland,"Greenland"},
-    {LandCover::Bareland,"Bareland"},
-    {LandCover::Imprevious,"Imprevious"},
-    {LandCover::CropLand,"CropLand"},
+    {LandCover::Water,"water"},
+    {LandCover::Greenland,"greenland"},
+    {LandCover::Bareland,"bareland"},
+    {LandCover::Imprevious,"imprevious"},
+    {LandCover::CropLand,"cropLand"},
 };
 std::unordered_map<LandCover,cv::Scalar> classifyColor = {
     {LandCover::Water,cv::Scalar(255,0,0)}, // blue
@@ -222,7 +222,7 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
             countings[LandCover::Bareland]++;
         else if (value == "Imprevious")
             countings[LandCover::Imprevious]++;
-        else if (value == "CropLand")
+        else if (value == "Cropland")
             countings[LandCover::CropLand]++;
     }
     file.close();

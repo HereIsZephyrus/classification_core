@@ -298,7 +298,7 @@ bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& datase
     }
     for (unsigned int i = 0; i < Spectra::SpectralNum * 2; i++){
         MAXVAL[i] = 0;
-        MINVAL[i] = 1e6;
+        MINVAL[i] = 65535;
     }
     for (unsigned int classID = 0; classID < LandCover::CoverType; classID++){
         const std::vector<vFloat>& avg = classParas[classID].getAvg();
@@ -307,10 +307,10 @@ bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& datase
         for (unsigned int i = 0; i < recordNum; i++){
             vFloat data;
             for (unsigned int d = 0; d < Spectra::SpectralNum; d++){
-                MAXVAL[d * 2] = std::max(MAXVAL[d],avg[i][d]);
-                MINVAL[d * 2] = std::min(MINVAL[d],avg[i][d]);
-                MAXVAL[d * 2 + 1] = std::max(MAXVAL[d],var[i][d]);
-                MINVAL[d * 2 + 1] = std::min(MINVAL[d],var[i][d]);
+                //MAXVAL[d * 2] = std::max(MAXVAL[d],avg[i][d]);
+                //MINVAL[d * 2] = std::min(MINVAL[d],avg[i][d]);
+                //MAXVAL[d * 2 + 1] = std::max(MAXVAL[d],var[i][d]);
+                //MINVAL[d * 2 + 1] = std::min(MINVAL[d],var[i][d]);
                 data.push_back(avg[i][d]);
                 data.push_back(var[i][d]);
             }

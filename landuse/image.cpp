@@ -103,14 +103,14 @@ bool GenerateFeatureImage(int year,cv::Mat& featureImage,std::vector<float>& min
         cv::Mat& band = bands[i];
         for (int y = 0; y < row; y++){
             for (int x = 0; x < col; x++){
-                if (cloudMask.at<uchar>(y,x) == 1){
-                    band.at<uchar>(y,x) = 0;
+                if (cloudMask.at<ushort>(y,x) == 1){
+                    band.at<ushort>(y,x) = 0;
                     continue;
                 }
-                if (shadowMask.at<uchar>(y,x) == 1)
-                    band.at<uchar>(y,x) *= 1.1;
-                band.at<uchar>(y,x) = band.at<uchar>(y,x) * slopes[i] + itcps[i];
-                band.at<uchar>(y,x) = (band.at<uchar>(y,x) - minVal[i]) * (255.0 / (maxVal[i] - minVal[i]));
+                if (shadowMask.at<ushort>(y,x) == 1)
+                    band.at<ushort>(y,x) *= 1.1;
+                band.at<ushort>(y,x) = band.at<ushort>(y,x) * slopes[i] + itcps[i];
+                band.at<ushort>(y,x) = (band.at<ushort>(y,x) - minVal[i]) * (65535.0 / (maxVal[i] - minVal[i]));
             }
         }
     }
@@ -123,8 +123,8 @@ char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Ma
     std::vector<std::vector<int>> matrix(row,std::vector<int>(col,0));
     for (int y = 0; y < row; y++){
         for (int x = 0; x < col; x++){
-            uchar lastValue = lastImage->at<uchar>(y,x);
-            uchar currentValue = currentImage->at<uchar>(y,x);
+            ushort lastValue = lastImage->at<ushort>(y,x);
+            ushort currentValue = currentImage->at<ushort>(y,x);
             matrix[y][x] = currentValue - lastValue;
         }
     }
