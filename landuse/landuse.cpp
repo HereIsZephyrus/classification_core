@@ -20,7 +20,7 @@ int LanduseMain(){
         land_NaiveBayesClassifier* bayes = new land_NaiveBayesClassifier();
         bayes->Train(dataset);
         cv::Mat classified;
-        bayes->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
+        bayes->Classify(rawImage,classified,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Naive Bayes", classified);
         bayes->Examine(dataset);
         bayes->Print(classified,classFolderNames);
@@ -32,7 +32,7 @@ int LanduseMain(){
         land_FisherClassifier* fisher = new land_FisherClassifier();
         fisher->Train(dataset);
         cv::Mat classified;
-        fisher->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
+        fisher->Classify(rawImage,classified,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Fisher", classified);
         fisher->Examine(dataset);
         fisher->Print(classified,classFolderNames);
@@ -44,7 +44,7 @@ int LanduseMain(){
         land_SVMClassifier* svm = new land_SVMClassifier();
         svm->Train(dataset);
         cv::Mat classified;
-        svm->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
+        svm->Classify(rawImage,classified,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("SVM", classified);
         svm->Examine(dataset);
         svm->Print(classified,classFolderNames);
@@ -56,7 +56,7 @@ int LanduseMain(){
         land_BPClassifier* bp = new land_BPClassifier();
         bp->Train(dataset);
         cv::Mat classified;
-        bp->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
+        bp->Classify(rawImage,classified,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("BP", classified);
         bp->Examine(dataset);
         bp->Print(classified,classFolderNames);
@@ -68,7 +68,7 @@ int LanduseMain(){
         land_RandomForestClassifier* randomforest = new land_RandomForestClassifier();
         randomforest->Train(dataset);
         cv::Mat classified;
-        randomforest->Classify(rawImage,classified,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
+        randomforest->Classify(rawImage,classified,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
         cv::imshow("Random Forest", classified);
         randomforest->Examine(dataset);
         randomforest->Print(classified,classFolderNames);
@@ -92,7 +92,7 @@ int SeriesMain(){
     vector<urban_Sample> dataset;
     StudySamples(classParas,dataset);
     delete[] classParas;
-    for (int year = 1997; year <=2022; year+=5){
+    for (int year = 2022; year <=2022; year+=5){
         cv::Mat featureImage;
         GenerateFeatureImage(year,featureImage,MINVAL,MAXVAL);
         classifyYears.push_back(std::make_pair(year,featureImage));
@@ -103,7 +103,7 @@ int SeriesMain(){
     // classifiy series
     vector<std::shared_ptr<Classified>> imageSeries;
     for (vector<YearImage>::iterator it = classifyYears.begin(); it != classifyYears.end(); it++)
-        imageSeries.push_back(ClassifySingleYear(dataset,*it,classifierForUse));
+        imageSeries.push_back(std::move(ClassifySingleYear(dataset,*it,classifierForUse)));
     vector<double> increasingRate;
     vector<char> increasingDirection;
     SeriesAnalysis(imageSeries,increasingRate,increasingDirection);
@@ -165,7 +165,7 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
                                                 const YearImage& yearImage,
                                                 const vector<std::string>& classifierForUse){
     using BaseClassifier = T_Classifier<LandCover>;
-    std::shared_ptr<Classified> classified = nullptr;
+    std::shared_ptr<Classified> classified = std::make_shared<Classified>();
     vector<std::unique_ptr<BaseClassifier>> classifiers;
     vector<classMat> pixelClasses;
     for (vector<std::string>::const_iterator classifierName = classifierForUse.begin(); classifierName != classifierForUse.end(); classifierName++){
@@ -184,7 +184,7 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
             classifier = new urban_RandomForestClassifier();
         classifier->Train(dataset);
         classMat singleYearPixelClasses;
-        classifier->Classify(yearImage.second,singleYearPixelClasses,LandCover::Edge,MINVAL,MAXVAL,classifierKernelSize);
+        classifier->Classify(yearImage.second,singleYearPixelClasses,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize);
         pixelClasses.push_back(singleYearPixelClasses);
         classifier->Examine(dataset);
         classifiers.push_back(std::unique_ptr<BaseClassifier>(classifier));
@@ -201,24 +201,25 @@ bool SeriesAnalysis(const vector<std::shared_ptr<Classified>>& imageSeries,
     increasingDirection.clear();
     vector<std::shared_ptr<Classified>>::const_iterator image = imageSeries.begin();
     double lastArea = (*image)->getArea();
-    std::shared_ptr<cv::Mat> lastImage = (*image)->getUrbanMask();
+    cv::Mat lastImage = (*image)->getUrbanMask().clone();
     ++image;
     for (;image != imageSeries.end(); image++){
         double currentArea = (*image)->getArea();
-        std::shared_ptr<cv::Mat> currentImage = (*image)->getUrbanMask();
+        cv::Mat currentImage = (*image)->getUrbanMask().clone();
         increasingRate.push_back((currentArea - lastArea) / lastArea);
         increasingDirection.push_back(UrbanMaskAnalysis(lastImage,currentImage));
         lastArea = currentArea;
-        lastImage = currentImage;
+        lastImage = currentImage.clone();
     }
     return true;
 }
 bool ReadTrueClasses(classMat& trueClasses2022){
     using namespace ningbo;
-    cv::Mat classifiedImage = cv::imread("../landuse/ningbo/true_classified-clip.tif");
-    for (int i = 0; i < classifiedImage.rows; i++){
+    cv::Mat classifiedImage = cv::imread("../landuse/ningbo/true_classified-clip.tif",cv::IMREAD_UNCHANGED);
+    classifiedImage.convertTo(classifiedImage,CV_8U);
+    for (int j = 0; j < classifiedImage.rows; j++){
         vClasses trueClassesRow;
-        for (int j = 0; j < classifiedImage.cols; j++){
+        for (int i = 0; i < classifiedImage.cols; i++){
             uchar value = classifiedImage.at<uchar>(j,i);
             if (value == 10 || value == 30)
                 trueClassesRow.push_back(LandCover::Greenland);
@@ -263,7 +264,7 @@ bool CombinedClassifier(std::shared_ptr<Classified> classified,
         combinedClasses.push_back(combinedClassesRow);
     }
     cv::Mat classifiedImage = cv::Mat::zeros(featureImage.rows, featureImage.cols, CV_8UC3);
-    classifiedImage.setTo(cv::Scalar(255,255,255));
+    classifiedImage.setTo(classifyColor.at(LandCover::UNCLASSIFIED));
     int y = 0;
     for (typename ClassMat::const_iterator row = combinedClasses.begin(); row != combinedClasses.end(); row++,y+=classifierKernelSize/2){
         int x = 0;
@@ -272,6 +273,7 @@ bool CombinedClassifier(std::shared_ptr<Classified> classified,
                 break;
             cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
             classifiedImage(window) = classifyColor.at(*col);
+            cv::Scalar color = classifyColor.at(*col);
         }
         if (y >= featureImage.rows - classifierKernelSize/2)
             break;
@@ -283,7 +285,7 @@ bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& datase
     namespace fs = std::filesystem;
     srand(time(0));
     cv::Mat rawImage;
-    std::string suitFolderPath = "../landuse/sampling/";
+    std::string suitFolderPath = "../landuse/ningbo/sampling/";
     for (unsigned int classID = 0; classID < LandCover::CoverType; classID++){
         std::string classFolderPath = suitFolderPath + classFolderNames[static_cast<LandCover>(classID)] + "/";
         if (!fs::exists(classFolderPath))

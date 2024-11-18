@@ -119,7 +119,7 @@ public:
     T_Classifier(){classifierName = "classifier";}
     virtual size_t getClassNum() const{return 0;}
     virtual void Train(const Dataset &dataset) = 0;
-    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize){
+    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,classType blankType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize){
         int classNum = getClassNum();
         int rows = featureImage.rows, cols = featureImage.cols;
         vector<vector<classType>> patchClasses;
@@ -134,9 +134,16 @@ public:
                 cv::split(sample, channels);
                 vFloat data;
                 CalcChannelMeanStds(channels, data);
-                for (size_t i = 0; i < data.size(); i++)
+                bool isBlank = true;
+                for (size_t i = 0; i < data.size(); i++){
                     data[i] = (data[i] - minVal[i])  / (maxVal[i] - minVal[i]);
-                rowClasses.push_back(Predict(data));
+                    if (data[i] >= 0)
+                        isBlank = false;
+                }
+                if (isBlank)
+                    rowClasses.push_back(blankType);
+                else
+                    rowClasses.push_back(Predict(data));
             }
             patchClasses.push_back(rowClasses);
         }
@@ -209,9 +216,9 @@ public:
             pixelClasses.push_back(temprow);
         }
     }
-    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Scalar>& classifyColor){
+    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,classType blankType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Scalar>& classifyColor){
         vector<vector<classType>> pixelClasses;
-        Classify(featureImage,pixelClasses,edgeType,minVal,maxVal,classifierKernelSize);
+        Classify(featureImage,pixelClasses,edgeType,blankType,minVal,maxVal,classifierKernelSize);
         classified = cv::Mat::zeros(featureImage.rows, featureImage.cols, CV_8UC3);
         classified.setTo(cv::Scalar(255,255,255));
         int y = 0;
@@ -228,7 +235,7 @@ public:
         }
     }
     void Examine(const Dataset& samples){
-        accuracy.confuseMat.clear();
+        accuracy.confuseMat.assign(getClassNum(),vector<int>(getClassNum(),0));
         unordered_map<classType,int> TP,FP,FN;
         for (typename Dataset::const_iterator it = samples.begin(); it != samples.end(); it++){
             if (it->isTrainSample())

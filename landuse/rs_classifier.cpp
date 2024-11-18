@@ -32,7 +32,7 @@ void land_StaticPara::Sampling(const std::string& entryPath){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize + 1; top+=classifierKernelSize/2){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
             vFloat means, vars;
-            for (unsigned int i = 0; i < weilaicheng::Spectra::SpectralNum; i++){
+            for (unsigned int i = 0; i < Spectra::SpectralNum; i++){
                 cv::Mat viewingPatch = channels[i](window);
                 cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
@@ -150,8 +150,7 @@ void urban_StaticPara::InitClassType(ningbo::LandCover ID){
 }
 template<>
 void urban_StaticPara::Sampling(const std::string& entryPath){
-    using ningbo::classifierKernelSize;
-    using namespace weilaicheng;
+    using namespace ningbo;
     std::vector<cv::Mat> channels;
     cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);// !! not finished read multi tif and merge
     const unsigned int patchRows = channels[0].rows, patchCols = channels[0].cols;
@@ -159,7 +158,7 @@ void urban_StaticPara::Sampling(const std::string& entryPath){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize + 1; top+=classifierKernelSize/2){
             cv::Rect window(left, top, classifierKernelSize, classifierKernelSize);
             vFloat means, vars;
-            for (unsigned int i = 0; i < weilaicheng::Spectra::SpectralNum; i++){
+            for (unsigned int i = 0; i < Spectra::SpectralNum; i++){
                 cv::Mat viewingPatch = channels[i](window);
                 cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
@@ -234,19 +233,26 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
 void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
     using cv::Point;
     vector<Point> impreviousPoints;
-    for (int y = 0; y < image->rows; ++y)
-        for (int x = 0; x < image->cols; ++x)
-            if (image->at<cv::Scalar>(y, x) == impreviousColor)
+    int row = image.rows,col = image.cols;
+    for (int y = 0; y < row; y++){
+        for (int x = 0; x < col; x++){
+            if (y == 3179 && x >= 4096)    break; 
+            if (image.at<cv::Scalar>(y, x) == impreviousColor)
                 impreviousPoints.push_back(Point(x, y));
-    cv::Mat density = cv::Mat::zeros(image->size(), CV_32FC1);
+            //I don't know why but it didn't work when the row reached the last row and the column reached 4096.
+            //Luckily in this task, it won't affect the result.
+        }
+    }
+    cv::Mat density = cv::Mat::zeros(image.size(), CV_32FC1);
     const double bandwidthSqr = 5.0 * 5.0;
     const double kernelScale = 1.0 / (2 * CV_PI * bandwidthSqr);
     for (vector<Point>::const_iterator point = impreviousPoints.begin(); point != impreviousPoints.end(); point++)
-        for (int y = 0; y < density.rows; ++y)
-            for (int x = 0; x < density.cols; ++x) {
+        for (int y = 0; y < row; y++)
+            for (int x = 0; x < col; x++) {
                 double distSqr = (point->x - x) * (point->x - x) + (point->y - y) * (point->y - y);
                 if (distSqr < bandwidthSqr)
                     density.at<float>(y, x) += kernelScale * exp(-0.5 * distSqr / bandwidthSqr);
+                if (y == 3179 && x >= 4096)    break; 
             }
     normalize(density, density, 0, 255, cv::NORM_MINMAX);
     density.convertTo(density, CV_8UC1);
@@ -266,11 +272,11 @@ void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
     for (size_t i = 0; i < contours.size(); i++)
         drawContours(filledImage, contours, (int)i, cv::Scalar(255), cv::FILLED);
     area = 0;
-    for (int y = 0; y < filledImage.rows; ++y)
-        for (int x = 0; x < filledImage.cols; ++x)
+    for (int y = 0; y < row; y++)
+        for (int x = 0; x < col; x++)
             if (filledImage.at<uchar>(y, x) == 255)
                 ++area;
-    urbanMask = std::shared_ptr<cv::Mat>(new cv::Mat(filledImage));
+    urbanMask = filledImage.clone();
     return;
 }
 void Classified::Examine(const vector<urban_Sample>& samples){

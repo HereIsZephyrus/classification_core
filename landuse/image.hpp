@@ -12,6 +12,6 @@ bool GenerateFeatureChannels(std::vector<cv::Mat> &channels);
 }
 namespace ningbo{
 bool GenerateFeatureImage(int year,cv::Mat& featureImage,std::vector<float>& minVal,std::vector<float>& maxVal);
-char UrbanMaskAnalysis(std::shared_ptr<cv::Mat> lastImage,std::shared_ptr<cv::Mat> currentImage);
+char UrbanMaskAnalysis(const cv::Mat& lastImage,const cv::Mat& currentImage);
 }
 #endif

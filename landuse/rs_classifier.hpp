@@ -62,8 +62,8 @@ enum LandCover : unsigned int{
     Bareland,
     CropLand,
     Imprevious,
-    Cloud,
     CoverType,
+    Cloud,
     Edge,
     UNCLASSIFIED
 };
@@ -79,7 +79,7 @@ enum Spectra : unsigned int{
 extern std::unordered_map<LandCover,std::string> classFolderNames;
 extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
 extern vFloat MINVAL,MAXVAL;
-constexpr int classifierKernelSize = 9;
+constexpr int classifierKernelSize = 5;
 constexpr float trainRatio = 0.8f;
 }
 typedef T_StaticPara<ningbo::LandCover> urban_StaticPara;
@@ -110,14 +110,15 @@ class urban_RandomForestClassifier : public T_RandomForestClassifier<LandCover>{
     size_t getClassNum() const override{return LandCover::CoverType;}
 };
 class Classified{
-    std::shared_ptr<cv::Mat> image,urbanMask;
+    cv::Mat urbanMask;
     double area;
 public:
+    cv::Mat image;
     Accuracy<LandCover> accuracy;
     Classified() = default;
-    std::shared_ptr<cv::Mat> getUrbanMask() const {return urbanMask;}
+    const cv::Mat& getUrbanMask() const {return urbanMask;}
     double getArea() const {return area;}
-    void setImage(const cv::Mat& classified){image = std::shared_ptr<cv::Mat>(new cv::Mat(classified));}
+    void setImage(const cv::Mat& classifiedImage){image = classifiedImage.clone();}
     void CalcUrbanMorphology(const cv::Scalar& impreviousColor);
     void Examine(const vector<urban_Sample>& samples);
     void Print();
