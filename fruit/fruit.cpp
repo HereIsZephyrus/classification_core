@@ -5,7 +5,7 @@ int FruitMain(){
     std::cout << "1. Histo Method" << std::endl;
     std::cout << "2. bayes Method" << std::endl;
     std::cout << "3. Fisher Method" << std::endl;
-    int type = 2;
+    int type = 3;
     //std::cin>>type;
     cv::Mat rawImage = cv::imread("../fruit/images/spot.jpeg");
     cv::Mat anotherImage = cv::imread("../fruit/images/dim.jpeg");
@@ -23,8 +23,8 @@ int FruitMain(){
         case 2:{
             cv::Mat processed;
             PreProcess(rawImage,processed);
-            BayersMethod(processed);
-            //BayersMethod(anotherImage);
+            //BayersMethod(processed);
+            BayersMethod(anotherImage);
             break;
         }
         case 3:{

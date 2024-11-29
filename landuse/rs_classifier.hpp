@@ -27,7 +27,7 @@ enum Spectra : unsigned int{
     SpectralNum
 };
 extern std::unordered_map<LandCover,std::string> classFolderNames;
-extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
+extern std::unordered_map<LandCover,cv::Vec3b> classifyColor;
 extern vFloat MAXVAL,MINVAL;
 constexpr int classifierKernelSize = 9;
 constexpr float trainRatio = 0.8f;
@@ -52,6 +52,8 @@ class land_BPClassifier : public T_BPClassifier<LandCover>{
 };
 class land_RandomForestClassifier : public T_RandomForestClassifier<LandCover>{
     size_t getClassNum() const override{return LandCover::CoverType;}
+public:
+    land_RandomForestClassifier():T_RandomForestClassifier<LandCover>(10,10,2,1,200){}
 };
 }
 
@@ -77,7 +79,7 @@ enum Spectra : unsigned int{
     SpectralNum
 };
 extern std::unordered_map<LandCover,std::string> classFolderNames;
-extern std::unordered_map<LandCover,cv::Scalar> classifyColor;
+extern std::unordered_map<LandCover,cv::Vec3b> classifyColor;
 extern vFloat MINVAL,MAXVAL;
 constexpr int classifierKernelSize = 5;
 constexpr float trainRatio = 0.8f;
@@ -108,6 +110,8 @@ class urban_BPClassifier : public T_BPClassifier<LandCover>{
 };
 class urban_RandomForestClassifier : public T_RandomForestClassifier<LandCover>{
     size_t getClassNum() const override{return LandCover::CoverType;}
+public:
+    urban_RandomForestClassifier():T_RandomForestClassifier<LandCover>(50,40,2,1,250){}
 };
 class Classified{
     cv::Mat urbanMask;
@@ -119,7 +123,7 @@ public:
     const cv::Mat& getUrbanMask() const {return urbanMask;}
     double getArea() const {return area;}
     void setImage(const cv::Mat& classifiedImage){image = classifiedImage.clone();}
-    void CalcUrbanMorphology(const cv::Scalar& impreviousColor);
+    void CalcUrbanMorphology(const vector<cv::Vec3b>& impreviousColor);
     void Examine(const vector<urban_Sample>& samples);
     void Print();
 };

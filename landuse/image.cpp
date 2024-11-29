@@ -104,13 +104,16 @@ bool GenerateFeatureImage(int year,cv::Mat& featureImage,std::vector<float>& min
         for (int y = 0; y < row; y++){
             for (int x = 0; x < col; x++){
                 if (cloudMask.at<uchar>(y,x) == 1){
-                    band.at<ushort>(y,x) = 0;
+                    band.at<ushort>(y,x) = 65535;
                     continue;
                 }
                 if (shadowMask.at<uchar>(y,x) == 1)
                     band.at<ushort>(y,x) *= 1.1;
-                band.at<ushort>(y,x) = band.at<ushort>(y,x) * slopes[i] + itcps[i];
-                band.at<ushort>(y,x) = (band.at<ushort>(y,x) - minVal[i]) * (65535.0 / (maxVal[i] - minVal[i]));
+                if (year < thresholdYear && band.at<ushort>(y,x)>0)
+                    band.at<ushort>(y,x) = band.at<ushort>(y,x) * slopes[i] + itcps[i];
+                //if (band.at<ushort>(y,x))
+                //    std::cout<<maxVal[i]<<' '<<minVal[i]<<' '<<band.at<ushort>(y,x)<<std::endl;
+                //band.at<ushort>(y,x) = (band.at<ushort>(y,x) - minVal[i]) * (65535.0 / (maxVal[i] - minVal[i]));
             }
         }
     }

@@ -34,7 +34,7 @@ void land_StaticPara::Sampling(const std::string& entryPath){
             vFloat means, vars;
             for (unsigned int i = 0; i < Spectra::SpectralNum; i++){
                 cv::Mat viewingPatch = channels[i](window);
-                cv::Scalar mean, stddev;
+                cv::Vec3b mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
                 means.push_back(mean[0]);
                 vars.push_back(stddev[0] * stddev[0]);
@@ -54,13 +54,13 @@ std::unordered_map<LandCover,std::string> classFolderNames = {
     {LandCover::Bareland,"bareland"},
     {LandCover::Imprevious,"imprevious"},
 };
-std::unordered_map<LandCover,cv::Scalar> classifyColor = {
-    {LandCover::Water,cv::Scalar(255,0,0)}, // blue
-    {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
-    {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone,
-    {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
-    {LandCover::Edge,cv::Scalar(255,255,255)}, // white
-    {LandCover::UNCLASSIFIED,cv::Scalar(255,255,255)}, // black
+std::unordered_map<LandCover,cv::Vec3b> classifyColor = {
+    {LandCover::Water,cv::Vec3b(255,0,0)}, // blue
+    {LandCover::Imprevious,cv::Vec3b(0,0,255)}, // red
+    {LandCover::Bareland,cv::Vec3b(42,42,165)}, // brzone,
+    {LandCover::Greenland,cv::Vec3b(0,255,0)}, // green
+    {LandCover::Edge,cv::Vec3b(255,255,255)}, // white
+    {LandCover::UNCLASSIFIED,cv::Vec3b(0,0,0)}, // black
 };
 bool land_NaiveBayesClassifier::CalcClassProb(float* prob){
     unsigned int* countings = new unsigned int[LandCover::CoverType];
@@ -152,7 +152,7 @@ template<>
 void urban_StaticPara::Sampling(const std::string& entryPath){
     using namespace ningbo;
     std::vector<cv::Mat> channels;
-    cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);// !! not finished read multi tif and merge
+    cv::imreadmulti(entryPath,channels,cv::IMREAD_UNCHANGED);
     const unsigned int patchRows = channels[0].rows, patchCols = channels[0].cols;
     for (unsigned int left = 0; left < patchCols - classifierKernelSize + 1; left+=classifierKernelSize/2){
         for (unsigned int top = 0; top < patchRows - classifierKernelSize + 1; top+=classifierKernelSize/2){
@@ -160,6 +160,12 @@ void urban_StaticPara::Sampling(const std::string& entryPath){
             vFloat means, vars;
             for (unsigned int i = 0; i < Spectra::SpectralNum; i++){
                 cv::Mat viewingPatch = channels[i](window);
+                viewingPatch.convertTo(viewingPatch, CV_16U);
+                //for (int i = 0; i < classifierKernelSize; i++){
+                //    for (int j = 0; j < classifierKernelSize; j++)
+                //        std::cout<<viewingPatch.at<ushort>(i,j)<<" ";
+                //    std::cout<<std::endl;
+                //}
                 cv::Scalar mean, stddev;
                 cv::meanStdDev(viewingPatch, mean, stddev);
                 means.push_back(mean[0]);
@@ -181,15 +187,15 @@ std::unordered_map<LandCover,std::string> classFolderNames = {
     {LandCover::Imprevious,"imprevious"},
     {LandCover::CropLand,"cropLand"},
 };
-std::unordered_map<LandCover,cv::Scalar> classifyColor = {
-    {LandCover::Water,cv::Scalar(255,0,0)}, // blue
-    {LandCover::Imprevious,cv::Scalar(0,0,255)}, // red
-    {LandCover::CropLand,cv::Scalar(0,255,255)}, // yellow
-    {LandCover::Bareland,cv::Scalar(42,42,165)}, // brzone
-    {LandCover::Greenland,cv::Scalar(0,255,0)}, // green
-    {LandCover::Edge,cv::Scalar(255,255,255)}, // white
-    {LandCover::Cloud,cv::Scalar(198,198,198)}, // gray
-    {LandCover::UNCLASSIFIED,cv::Scalar(255,255,255)}, // black
+std::unordered_map<LandCover,cv::Vec3b> classifyColor = {
+    {LandCover::Water,cv::Vec3b(255,0,0)}, // blue
+    {LandCover::Imprevious,cv::Vec3b(0,0,255)}, // red
+    {LandCover::CropLand,cv::Vec3b(0,255,255)}, // yellow
+    {LandCover::Bareland,cv::Vec3b(42,42,165)}, // brzone
+    {LandCover::Greenland,cv::Vec3b(0,255,0)}, // green
+    {LandCover::Edge,cv::Vec3b(255,255,255)}, // white
+    {LandCover::Cloud,cv::Vec3b(198,198,198)}, // gray
+    {LandCover::UNCLASSIFIED,cv::Vec3b(0,0,0)}, // black
 };
 bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
     unsigned int* countings = new unsigned int[LandCover::CoverType];
@@ -230,30 +236,32 @@ bool urban_NaiveBayesClassifier::CalcClassProb(float* prob){
     delete[] countings;
     return true;
 }
-void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
+
+void Classified::CalcUrbanMorphology(const vector<cv::Vec3b>& impreviousColor){
     using cv::Point;
     vector<Point> impreviousPoints;
     int row = image.rows,col = image.cols;
     for (int y = 0; y < row; y++){
         for (int x = 0; x < col; x++){
-            if (y == 3179 && x >= 4096)    break; 
-            if (image.at<cv::Scalar>(y, x) == impreviousColor)
-                impreviousPoints.push_back(Point(x, y));
-            //I don't know why but it didn't work when the row reached the last row and the column reached 4096.
-            //Luckily in this task, it won't affect the result.
+            for (vector<cv::Vec3b>::const_iterator color = impreviousColor.begin(); color != impreviousColor.end(); color++)
+                if (image.at<cv::Vec3b>(y, x) == *color)
+                    impreviousPoints.push_back(Point(x, y));
         }
     }
     cv::Mat density = cv::Mat::zeros(image.size(), CV_32FC1);
+    const int bandEdge = 10;
     const double bandwidthSqr = 5.0 * 5.0;
     const double kernelScale = 1.0 / (2 * CV_PI * bandwidthSqr);
-    for (vector<Point>::const_iterator point = impreviousPoints.begin(); point != impreviousPoints.end(); point++)
-        for (int y = 0; y < row; y++)
-            for (int x = 0; x < col; x++) {
+    for (vector<Point>::const_iterator point = impreviousPoints.begin(); point != impreviousPoints.end(); point++){
+        int minY = std::max(0, point->y - bandEdge),maxY = std::min(row - 1, point->y + bandEdge);
+        int minX = std::max(0, point->x - bandEdge), maxX = std::min(col - 1, point->x + bandEdge);
+        for (int y = minY; y < maxY; y++)
+            for (int x = minX; x < maxX; x++) {
                 double distSqr = (point->x - x) * (point->x - x) + (point->y - y) * (point->y - y);
                 if (distSqr < bandwidthSqr)
                     density.at<float>(y, x) += kernelScale * exp(-0.5 * distSqr / bandwidthSqr);
-                if (y == 3179 && x >= 4096)    break; 
             }
+    }
     normalize(density, density, 0, 255, cv::NORM_MINMAX);
     density.convertTo(density, CV_8UC1);
     vector<float> kdeValues;
@@ -270,19 +278,16 @@ void Classified::CalcUrbanMorphology(const cv::Scalar& impreviousColor){
     findContours(maskImage, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     cv::Mat filledImage = cv::Mat::zeros(maskImage.size(), CV_8UC1);
     for (size_t i = 0; i < contours.size(); i++)
-        drawContours(filledImage, contours, (int)i, cv::Scalar(255), cv::FILLED);
+        drawContours(filledImage, contours, (int)i, cv::Vec3b(255), cv::FILLED);
     area = 0;
     for (int y = 0; y < row; y++)
         for (int x = 0; x < col; x++)
             if (filledImage.at<uchar>(y, x) == 255)
                 ++area;
+    std::cout<<"area:"<<area<<std::endl;
     urbanMask = filledImage.clone();
     return;
 }
-void Classified::Examine(const vector<urban_Sample>& samples){
-
-}
-void Classified::Print(){
-    
-}
+void Classified::Examine(const vector<urban_Sample>& samples){}
+void Classified::Print(){}
 }// namespace ningbo

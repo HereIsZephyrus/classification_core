@@ -81,7 +81,8 @@ int LanduseMain(){
 int SeriesMain(){
     using namespace ningbo;
     using std::vector;
-    vector<std::string> classifierForUse = {"bayes","fisher","svm","bp","rf"};
+    //vector<std::string> classifierForUse = {"bayes","fisher","svm","bp","rf"};
+    vector<std::string> classifierForUse = {"rf"};
     vector<YearImage> classifyYears;
     //vector<int> classifyYears = {2022}; // TestClassifierFor2022
     // supervision train sample
@@ -89,21 +90,26 @@ int SeriesMain(){
     urban_StaticPara* classParas = new urban_StaticPara[classNum];
     for (unsigned int classID = 0; classID < classNum; classID++)
         classParas[classID].InitClassType(static_cast<LandCover>(classID));
-    vector<urban_Sample> dataset;
-    StudySamples(classParas,dataset);
+    vector<urban_Sample> trainDataset;
+    StudySamples(classParas,trainDataset);
     delete[] classParas;
-    for (int year = 2022; year <=2022; year+=5){
+    for (int year = 1997; year <=2022; year+=5){
         cv::Mat featureImage;
         GenerateFeatureImage(year,featureImage,MINVAL,MAXVAL);
         classifyYears.push_back(std::make_pair(year,featureImage));
     }
     vector<vector<LandCover>> trueClasses2022;
     ReadTrueClasses(trueClasses2022);
+    vector<urban_Sample> testDataset;
+    StudyTrueClasses(trueClasses2022,classifyYears.back().second,testDataset,100);
 
+    std::cout<<"start classify"<<std::endl;
     // classifiy series
     vector<std::shared_ptr<Classified>> imageSeries;
-    for (vector<YearImage>::iterator it = classifyYears.begin(); it != classifyYears.end(); it++)
-        imageSeries.push_back(std::move(ClassifySingleYear(dataset,*it,classifierForUse)));
+    for (vector<YearImage>::iterator it = classifyYears.begin(); it != classifyYears.end(); it++){
+        imageSeries.push_back(std::move(ClassifySingleYear(trainDataset,trainDataset,*it,classifierForUse)));
+        std::cout<<it->first<<" finished."<<std::endl;
+    }
     vector<double> increasingRate;
     vector<char> increasingDirection;
     SeriesAnalysis(imageSeries,increasingRate,increasingDirection);
@@ -161,7 +167,8 @@ namespace ningbo{
 using std::vector;
 using vClasses = vector<LandCover>;
 using classMat = vector<vector<LandCover>>;
-std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& dataset,
+std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& trainDataset,
+                                                const vector<urban_Sample>& testDataset,
                                                 const YearImage& yearImage,
                                                 const vector<std::string>& classifierForUse){
     using BaseClassifier = T_Classifier<LandCover>;
@@ -182,16 +189,21 @@ std::shared_ptr<Classified> ClassifySingleYear( const vector<urban_Sample>& data
             classifier = new urban_BPClassifier();
         else if (*classifierName == "rf")
             classifier = new urban_RandomForestClassifier();
-        classifier->Train(dataset);
+        classifier->Train(trainDataset);
         classMat singleYearPixelClasses;
-        classifier->Classify(yearImage.second,singleYearPixelClasses,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize);
-        pixelClasses.push_back(singleYearPixelClasses);
-        classifier->Examine(dataset);
-        classifiers.push_back(std::unique_ptr<BaseClassifier>(classifier));
+        //classifier->Classify(yearImage.second,singleYearPixelClasses,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,false);
+        //pixelClasses.push_back(singleYearPixelClasses);
+        //classifiers.push_back(std::unique_ptr<BaseClassifier>(classifier));
+        cv::Mat testImage;
+        classifier->Classify(yearImage.second,testImage,LandCover::Edge,LandCover::UNCLASSIFIED,MINVAL,MAXVAL,classifierKernelSize,classifyColor,false);
+        classifier->Examine(testDataset);
+        classifier->Print(testImage,classFolderNames,"./"+std::to_string(yearImage.first));
+        classified->setImage(testImage);
+        std::cout<<yearImage.first<<'-'<<classifier->getName()<<" finished."<<std::endl;
     }
     CombinedClassifier(classified,classifiers,pixelClasses,yearImage.second,MINVAL,MAXVAL,classifierKernelSize,classifyColor);
-    classified->CalcUrbanMorphology(classifyColor[LandCover::Imprevious]);
-    classified->Examine(dataset);
+    classified->CalcUrbanMorphology({classifyColor[LandCover::Imprevious],classifyColor[LandCover::Bareland]});
+    classified->Examine(testDataset);
     return classified;
 }
 bool SeriesAnalysis(const vector<std::shared_ptr<Classified>>& imageSeries,
@@ -229,9 +241,22 @@ bool ReadTrueClasses(classMat& trueClasses2022){
                 trueClassesRow.push_back(LandCover::Imprevious);
             else if (value == 60)
                 trueClassesRow.push_back(LandCover::Bareland);
+            else if (value == 80)
+                trueClassesRow.push_back(LandCover::Water);
+            else
+                trueClassesRow.push_back(LandCover::UNCLASSIFIED);
         }
         trueClasses2022.push_back(trueClassesRow);
     }
+    cv::Mat classified = cv::Mat::zeros(classifiedImage.rows, classifiedImage.cols, CV_8UC3);
+    classified.setTo(cv::Vec3b(255,255,255));
+    for (int y = 0; y < trueClasses2022.size(); y++)
+        for (int x = 0; x < trueClasses2022[y].size(); x++)
+            classified.at<cv::Vec3b>(y, x) = classifyColor[trueClasses2022[y][x]];
+    cv::imwrite("./true_classified.png", classified);
+    //cv::imshow("True classes", classified);
+    //cv::waitKey(0);
+    //cv::destroyWindow("True classes");
     return true;
 }
 bool CombinedClassifier(std::shared_ptr<Classified> classified,
@@ -239,7 +264,7 @@ bool CombinedClassifier(std::shared_ptr<Classified> classified,
                         const vector<vector<vector<LandCover>>> pixelClasses,
                         const cv::Mat& featureImage,
                         const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,
-                        const std::unordered_map<LandCover,cv::Scalar>& classifyColor){
+                        const std::unordered_map<LandCover,cv::Vec3b>& classifyColor){
     using ClassMat = vector<vector<LandCover>>;
     vector<float> accuracy;
     for (vector<std::unique_ptr<T_Classifier<LandCover>>>::const_iterator classifier = classifiers.begin(); classifier != classifiers.end(); classifier++)
@@ -273,7 +298,7 @@ bool CombinedClassifier(std::shared_ptr<Classified> classified,
                 break;
             cv::Rect window(x,y,classifierKernelSize/2,classifierKernelSize/2);
             classifiedImage(window) = classifyColor.at(*col);
-            cv::Scalar color = classifyColor.at(*col);
+            cv::Vec3b color = classifyColor.at(*col);
         }
         if (y >= featureImage.rows - classifierKernelSize/2)
             break;
@@ -288,6 +313,7 @@ bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& datase
     std::string suitFolderPath = "../landuse/ningbo/sampling/";
     for (unsigned int classID = 0; classID < LandCover::CoverType; classID++){
         std::string classFolderPath = suitFolderPath + classFolderNames[static_cast<LandCover>(classID)] + "/";
+        //std::cout<<classFolderPath<<std::endl;
         if (!fs::exists(classFolderPath))
             continue;
         for (const auto& entry : fs::recursive_directory_iterator(classFolderPath)) {
@@ -314,7 +340,7 @@ bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& datase
                 //MAXVAL[d * 2 + 1] = std::max(MAXVAL[d],var[i][d]);
                 //MINVAL[d * 2 + 1] = std::min(MINVAL[d],var[i][d]);
                 data.push_back(avg[i][d]);
-                data.push_back(var[i][d]);
+                //data.push_back(var[i][d]);
             }
             //bool isTrain = (rand()%10) <= (trainRatio*10);
             bool isTrain = i <= (recordNum * trainRatio);
@@ -322,8 +348,53 @@ bool StudySamples(urban_StaticPara* classParas,std::vector<urban_Sample>& datase
             dataset.push_back(sample);
         }
     }
-    for (std::vector<urban_Sample>::iterator data = dataset.begin(); data != dataset.end(); data++)
-        data->scalingFeatures(MAXVAL,MINVAL);
+    //for (std::vector<urban_Sample>::iterator data = dataset.begin(); data != dataset.end(); data++)
+    //    data->scalingFeatures(MAXVAL,MINVAL);
+    return true;
+}
+bool StudyTrueClasses(const vector<vector<LandCover>>&trueClasses2022,const cv::Mat& RSimage,vector<urban_Sample>& trainDataset,size_t setSize){
+    int row = RSimage.rows, col = RSimage.cols;
+    srand(time(0));
+    int counter = setSize;
+    int sampleRange = classifierKernelSize / 2;
+    while (counter){
+        int y = rand()%(row - sampleRange * 2) + sampleRange;
+        int x = rand()%(col - sampleRange * 2) + sampleRange;
+        LandCover coverType = trueClasses2022[y][x];
+        for (int i = 0; i < sampleRange; i++)
+            for (int j = 0; j < sampleRange; j++)
+                if (trueClasses2022[y + i][x + j] != coverType)
+                    continue;
+        if (coverType == LandCover::UNCLASSIFIED)
+            continue;
+        cv::Rect window(x,y,sampleRange,sampleRange);
+        vFloat data;
+        cv::Mat sample = RSimage(window);
+        std::vector<cv::Mat> channels;
+        cv::split(sample,channels);
+        bool blank = false;
+        for (int d = 0; d < Spectra::SpectralNum; d++){
+            int count = 0;
+            float val = 0.0f;
+            for (int i = 0; i < sampleRange; i++)
+                for (int j = 0; j < sampleRange; j++){
+                    float value = channels[d].at<ushort>(y+i,x+j);
+                    if (value > 0 && value < 65535){
+                        val += value;
+                        ++count;
+                    }
+                }
+            if (count == 0)
+                blank = true;
+            else
+                data.push_back(val / count);
+        }
+        if (blank)
+            continue;
+        --counter;
+         urban_Sample urbanSample(coverType,data,true);
+        trainDataset.push_back(urbanSample);
+    }
     return true;
 }
 }//namespace ningbo

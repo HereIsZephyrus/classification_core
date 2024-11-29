@@ -10,6 +10,8 @@
 #include <map>
 #include <memory>
 #include <Eigen/Dense>
+#include <random>
+#include <algorithm>
 #include <opencv2/opencv.hpp>
 
 using std::vector;
@@ -108,18 +110,25 @@ protected:
         for (vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++){
             cv::Scalar mean, stddev;
             cv::meanStdDev(*it, mean, stddev);
-            data.push_back(cv::mean(*it)[0]);
+            data.push_back(mean[0]);
             data.push_back(stddev[0] * stddev[0]);
         }
+        return true;
+    }
+    bool CalcChannelMean(const vector<cv::Mat> & channels, vFloat & data){
+        data.clear();
+        for (vector<cv::Mat>::const_iterator it = channels.begin(); it != channels.end(); it++)
+            data.push_back(cv::mean(*it)[0]);
         return true;
     }
 public:
     virtual classType Predict(const vFloat& x) = 0;
     Accuracy<classType> accuracy;
     T_Classifier(){classifierName = "classifier";}
+    std::string getName() const {return classifierName;}
     virtual size_t getClassNum() const{return 0;}
     virtual void Train(const Dataset &dataset) = 0;
-    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,classType blankType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize){
+    void Classify(const cv::Mat& featureImage,vector<vector<classType>>& pixelClasses,classType edgeType,classType blankType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,bool considerTexture = true){
         int classNum = getClassNum();
         int rows = featureImage.rows, cols = featureImage.cols;
         vector<vector<classType>> patchClasses;
@@ -133,11 +142,14 @@ public:
                 vector<cv::Mat> channels;
                 cv::split(sample, channels);
                 vFloat data;
-                CalcChannelMeanStds(channels, data);
+                if (considerTexture)
+                    CalcChannelMeanStds(channels, data);
+                else
+                    CalcChannelMean(channels, data);
                 bool isBlank = true;
-                for (size_t i = 0; i < data.size(); i++){
-                    data[i] = (data[i] - minVal[i])  / (maxVal[i] - minVal[i]);
-                    if (data[i] >= 0)
+                for (size_t i = 0; i < data.size(); i+=2){
+                    //data[i] = (data[i] - minVal[i])  / (maxVal[i] - minVal[i]);
+                    if (data[i] > 0)
                         isBlank = false;
                 }
                 if (isBlank)
@@ -216,11 +228,11 @@ public:
             pixelClasses.push_back(temprow);
         }
     }
-    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,classType blankType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Scalar>& classifyColor){
+    void Classify(const cv::Mat& featureImage,cv::Mat& classified,classType edgeType,classType blankType,const vFloat& minVal,const vFloat& maxVal,int classifierKernelSize,const std::unordered_map<classType,cv::Vec3b>& classifyColor,bool considerTexture = true){
         vector<vector<classType>> pixelClasses;
         Classify(featureImage,pixelClasses,edgeType,blankType,minVal,maxVal,classifierKernelSize);
         classified = cv::Mat::zeros(featureImage.rows, featureImage.cols, CV_8UC3);
-        classified.setTo(cv::Scalar(255,255,255));
+        classified.setTo(cv::Vec3b(255,255,255));
         int y = 0;
         for (typename ClassMat::const_iterator row = pixelClasses.begin(); row != pixelClasses.end(); row++,y+=classifierKernelSize/2){
             int x = 0;
@@ -294,7 +306,7 @@ public:
     classType Predict(const vFloat& x) override{
         unsigned int classNum = this->getClassNum();
         double maxProb = -10e9;
-        classType bestClass;
+        classType bestClass = static_cast<classType>(0);
         for (unsigned int classID = 0; classID < classNum; classID++){
             double prob = CalculateClassProbability(classID,x);
             if (prob > maxProb) {
@@ -319,12 +331,16 @@ using Dataset = vector<T_Sample<classType>>;
 protected:
     double CalculateClassProbability(unsigned int classID,const vFloat& x) override{
         double res = this->para[classID].w;
+        //double res = log(this->para[classID].w);
         for (unsigned int d = 0; d < this->featureNum; d++){
-            float pd = x[d] - this->para[classID].mu[d];
-            float vars = this->para[classID].sigma[d] * this->para[classID].sigma[d];
-            double exponent = exp(static_cast<double>(- pd * pd / (2 * vars)));
+            double pd = x[d] - this->para[classID].mu[d];
+            double vars = this->para[classID].sigma[d] * this->para[classID].sigma[d];
+            double exponent = exp(- pd * pd / (2 * vars));
             double normalize = 1.0f / (sqrt(2 * CV_PI) * vars);
             res *= normalize * exponent;
+            //double exponent = - pd * pd / (2 * vars);
+            //double normalize = - log(2 * CV_PI * vars);
+            //res += exponent + normalize;
         }
         return res;
     }
@@ -368,20 +384,6 @@ public:
             temp.mu = classifiedFeaturesAvg[i];
             temp.sigma = classifiedFeaturesVar[i];
             this->para.push_back(temp);
-            /*
-            {
-                std::cout<<"class "<<i<<" counts"<<classRecordNum[i]<<std::endl;
-                std::cout<<"w: "<<temp.w<<std::endl;
-                std::cout<<"mu: ";
-                for (unsigned int j = 0; j < this->featureNum; j++)
-                    std::cout<<temp.mu[j]<<" ";
-                std::cout<<std::endl;
-                std::cout<<"sigma: ";
-                for (unsigned int j = 0; j < this->featureNum; j++)
-                    std::cout<<temp.sigma[j]<<" ";
-                std::cout<<std::endl;
-            }
-            */
         }
         return;
     }
@@ -482,7 +484,7 @@ public:
         return;
     }
     classType Predict(const vFloat& x) override{
-        classType resClass;
+        classType resClass = static_cast<classType>(0);
         double projed = 0;
         for (unsigned int i = 0; i < this->featureNum; i++)
             projed += x[i] * projMat[i];
@@ -613,7 +615,7 @@ public:
             }
         }
         int maxVote = 0;
-        classType resClass;
+        classType resClass = static_cast<classType>(0);
         for (vector<unsigned int>::const_iterator it = classVote.begin(); it != classVote.end(); it++)
             if (*it > maxVote){
                 maxVote = *it;
@@ -722,7 +724,7 @@ public:
     classType Predict(const vFloat& x) override{
         vFloat hidden,actived;
         forwardFeed(x,hidden,actived);
-        classType resClass;
+        classType resClass = static_cast<classType>(0);
         float maxLight = 0.0f;
         for (int i = 0; i < classNum; i++)
             if (actived[i] > maxLight){
@@ -876,8 +878,17 @@ protected:
     DecisionTreeList decisionTrees;
     int nEstimators,eachTreeSamplesNum;
     int maxDepth,minSamplesSplit,minSamplesLeaf;
+    void Bootstrapping(const Dataset& rawdataset, Dataset& bootstrapped){
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> dist(0, rawdataset.size() - 1);
+        for (int i = 0; i < eachTreeSamplesNum; i++){
+            int index = dist(gen);
+            bootstrapped.push_back(rawdataset[index]);
+        }
+    }
 public:
-    T_RandomForestClassifier(int nEstimators = 5,int maxDepth = 10, int minSamplesSplit = 2, int minSamplesLeaf = 1, int eachTreeSamplesNum = 1000000)
+    T_RandomForestClassifier(int nEstimators,int maxDepth, int minSamplesSplit, int minSamplesLeaf, int eachTreeSamplesNum)
      : nEstimators(nEstimators),maxDepth(maxDepth),eachTreeSamplesNum(eachTreeSamplesNum),
         minSamplesSplit(minSamplesSplit),minSamplesLeaf(minSamplesLeaf) {
         decisionTrees.reserve(nEstimators);
@@ -886,9 +897,12 @@ public:
     ~T_RandomForestClassifier(){}
     virtual void Train(const Dataset& dataset) override{
         this->featureNum = dataset[0].getFeatures().size();
+        eachTreeSamplesNum = std::min(eachTreeSamplesNum, static_cast<int>(dataset.size()));
         for (int i = 0; i < nEstimators; i++){
             std::unique_ptr<DecisionTree> tree = std::make_unique<DecisionTree>(this->featureNum,maxDepth,minSamplesSplit,minSamplesLeaf);
-            tree->train(dataset);
+            Dataset bootstrap;
+            Bootstrapping(dataset,bootstrap);
+            tree->train(bootstrap);
             decisionTrees.push_back(std::move(tree));
         }
     }
